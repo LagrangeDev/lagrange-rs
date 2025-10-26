@@ -119,9 +119,18 @@ impl BotContextBuilder {
         let keystore = self.keystore.expect("Keystore is required");
 
         let cache = CacheContext::new();
-        let packet = PacketContext::new();
         let socket = SocketContext::new();
         let event = EventContext::new();
+
+        let keystore_arc = Arc::new(std::sync::RwLock::new(keystore.clone()));
+        let app_info_arc = Arc::new(app_info.clone());
+
+        // PacketContext needs keystore, app_info, and config
+        let packet = PacketContext::new(
+            keystore_arc,
+            app_info_arc,
+            &config,
+        );
 
         let service = ServiceContext::new(&config);
 
