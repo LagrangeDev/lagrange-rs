@@ -1,117 +1,75 @@
-use num_bigint::{BigInt, Sign};
-use rand::Rng;
+use crypto_bigint::modular::SafeGcdInverter;
+use crypto_bigint::rand_core::OsRng;
+use crypto_bigint::{
+    Concat, Encoding, Integer, Limb, NonZero, Odd, PrecomputeInverter, RandomMod, Split, Uint,
+    U192, U256,
+};
 
 /// Elliptic curve parameters
 #[derive(Debug, Clone)]
-pub struct EllipticCurve {
+pub struct EllipticCurve<const LIMBS: usize, const WIDE_LIMBS: usize, const UNSAT_LIMBS: usize>
+where
+    Uint<LIMBS>: Concat<Output = Uint<WIDE_LIMBS>> + Encoding,
+    Uint<WIDE_LIMBS>: Split<Output = Uint<LIMBS>> + Encoding,
+    Odd<Uint<LIMBS>>: PrecomputeInverter<Inverter = SafeGcdInverter<LIMBS, UNSAT_LIMBS>>,
+{
     /// Prime modulus
-    pub p: BigInt,
+    pub p: NonZero<Uint<LIMBS>>,
     /// Curve parameter a
-    pub a: BigInt,
+    pub a: Uint<LIMBS>,
     /// Curve parameter b
-    pub b: BigInt,
+    pub b: Uint<LIMBS>,
     /// Generator point
-    pub g: EllipticPoint,
+    pub g: EllipticPoint<LIMBS>,
     /// Order of the generator
-    pub n: BigInt,
+    pub n: NonZero<Uint<LIMBS>>,
 }
 
-impl EllipticCurve {
-    /// Creates the Secp192K1 curve (192-bit Koblitz curve)
-    pub fn secp192k1() -> Self {
-        let p =
-            BigInt::parse_bytes(b"FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFEE37", 16).unwrap();
+/// The Prime256V1 curve (NIST P-256)
+pub const PRIME256V1: EllipticCurve<4, 8, 6> = EllipticCurve {
+    p: NonZero::<Uint<_>>::new_unwrap(U256::from_be_hex(
+        "ffffffff00000001000000000000000000000000ffffffffffffffffffffffff",
+    )),
+    a: U256::from_be_hex("ffffffff00000001000000000000000000000000fffffffffffffffffffffffc"),
+    b: U256::from_be_hex("5ac635d8aa3a93e7b3ebbd55769886bc651d06b0cc53b0f63bce3c3e27d2604b"),
+    g: EllipticPoint {
+        x: U256::from_be_hex("6b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296"),
+        y: U256::from_be_hex("4fe342e2fe1a7f9b8ee7eb4a7c0f9e162bce33576b315ececbb6406837bf51f5"),
+    },
+    n: NonZero::<Uint<_>>::new_unwrap(U256::from_be_hex(
+        "ffffffff00000000ffffffffffffffffbce6faada7179e84f3b9cac2fc632551",
+    )),
+};
 
-        let a = BigInt::from(0);
-        let b = BigInt::from(3);
+/// The Secp192K1 curve (192-bit Koblitz curve)
+pub const SECP192K1: EllipticCurve<3, 6, 5> = EllipticCurve {
+    p: NonZero::<Uint<_>>::new_unwrap(U192::from_be_hex(
+        "fffffffffffffffffffffffffffffffffffffffeffffee37",
+    )),
+    a: U192::from_be_hex("000000000000000000000000000000000000000000000000"),
+    b: U192::from_be_hex("000000000000000000000000000000000000000000000003"),
+    g: EllipticPoint {
+        x: U192::from_be_hex("db4ff10ec057e9ae26b07d0280b7f4341da5d1b1eae06c7d"),
+        y: U192::from_be_hex("9b2f2f6d9c5628a7844163d015be86344082aa88d95e2f9d"),
+    },
+    n: NonZero::<Uint<_>>::new_unwrap(U192::from_be_hex(
+        "fffffffffffffffffffffffe26f2fc170f69466a74defd8d",
+    )),
+};
 
-        let gx =
-            BigInt::parse_bytes(b"DB4FF10EC057E9AE26B07D0280B7F4341DA5D1B1EAE06C7D", 16).unwrap();
-
-        let gy =
-            BigInt::parse_bytes(b"9B2F2F6D9C5628A7844163D015BE86344082AA88D95E2F9D", 16).unwrap();
-
-        let n =
-            BigInt::parse_bytes(b"FFFFFFFFFFFFFFFFFFFFFFFE26F2FC170F69466A74DEFD8D", 16).unwrap();
-
-        Self {
-            p,
-            a,
-            b,
-            g: EllipticPoint { x: gx, y: gy },
-            n,
-        }
-    }
-
-    /// Creates the Prime256V1 curve (NIST P-256)
-    pub fn prime256v1() -> Self {
-        let p = BigInt::parse_bytes(
-            b"FFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFF",
-            16,
-        )
-        .unwrap();
-
-        let a = BigInt::parse_bytes(
-            b"FFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFC",
-            16,
-        )
-        .unwrap();
-
-        let b = BigInt::parse_bytes(
-            b"5AC635D8AA3A93E7B3EBBD55769886BC651D06B0CC53B0F63BCE3C3E27D2604B",
-            16,
-        )
-        .unwrap();
-
-        let gx = BigInt::parse_bytes(
-            b"6B17D1F2E12C4247F8BCE6E563A440F277037D812DEB33A0F4A13945D898C296",
-            16,
-        )
-        .unwrap();
-
-        let gy = BigInt::parse_bytes(
-            b"4FE342E2FE1A7F9B8EE7EB4A7C0F9E162BCE33576B315ECECBB6406837BF51F5",
-            16,
-        )
-        .unwrap();
-
-        let n = BigInt::parse_bytes(
-            b"FFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC632551",
-            16,
-        )
-        .unwrap();
-
-        Self {
-            p,
-            a,
-            b,
-            g: EllipticPoint { x: gx, y: gy },
-            n,
-        }
-    }
-
-    /// Modular reduction ensuring positive result
-    fn mod_positive(&self, value: &BigInt) -> BigInt {
-        let mut result = value % &self.p;
-        if result.sign() == Sign::Minus {
-            result += &self.p;
-        }
-        result
-    }
-
-    /// Modular inverse using Fermat's Little Theorem: a^(p-2) mod p
-    fn mod_inverse(&self, a: &BigInt) -> BigInt {
-        if a.sign() == Sign::Minus {
-            let pos = self.mod_positive(a);
-            return &self.p - self.mod_inverse(&pos);
-        }
-
-        // Use Fermat's little theorem: a^(p-2) mod p
-        a.modpow(&(&self.p - 2), &self.p)
-    }
-
+impl<const LIMBS: usize, const WIDE_LIMBS: usize, const UNSAT_LIMBS: usize>
+    EllipticCurve<LIMBS, WIDE_LIMBS, UNSAT_LIMBS>
+where
+    Uint<LIMBS>: Concat<Output = Uint<WIDE_LIMBS>> + Encoding,
+    Uint<WIDE_LIMBS>: Split<Output = Uint<LIMBS>> + Encoding,
+    Odd<Uint<LIMBS>>: PrecomputeInverter<Inverter = SafeGcdInverter<LIMBS, UNSAT_LIMBS>>,
+{
     /// Adds two points on the elliptic curve
-    fn point_add(&self, p1: &EllipticPoint, p2: &EllipticPoint) -> EllipticPoint {
+    fn point_add(
+        &self,
+        p1: &EllipticPoint<LIMBS>,
+        p2: &EllipticPoint<LIMBS>,
+    ) -> EllipticPoint<LIMBS> {
         // Identity element checks
         if p1.is_identity() {
             return p2.clone();
@@ -129,87 +87,107 @@ impl EllipticCurve {
         let m = if x1 == x2 {
             if y1 == y2 {
                 // Point doubling: m = (3x₁² + a) / (2y₁)
-                let numerator = self.mod_positive(&(3 * x1 * x1 + &self.a));
-                let denominator = self.mod_positive(&(2 * y1));
-                let denominator_inv = self.mod_inverse(&denominator);
-                self.mod_positive(&(numerator * denominator_inv))
+                let three_x1_sq = x1.mul_mod(x1, &self.p).mul_mod(&Uint::from(3u8), &self.p);
+                let numerator = three_x1_sq.add_mod(&self.a, &self.p);
+                let denominator = y1.mul_mod(&Uint::from(2u8), &self.p);
+                let denominator_inv = denominator.inv_mod(&self.p).unwrap();
+                numerator.mul_mod(&denominator_inv, &self.p)
             } else {
                 // Points are inverses, result is identity
                 return EllipticPoint::identity();
             }
         } else {
             // Point addition: m = (y₁ - y₂) / (x₁ - x₂)
-            let numerator = self.mod_positive(&(y1 - y2));
-            let denominator = self.mod_positive(&(x1 - x2));
-            let denominator_inv = self.mod_inverse(&denominator);
-            self.mod_positive(&(numerator * denominator_inv))
+            let numerator = y1.sub_mod(y2, &self.p);
+            let denominator = x1.sub_mod(x2, &self.p);
+            let denominator_inv = denominator.inv_mod(&self.p).unwrap();
+            numerator.mul_mod(&denominator_inv, &self.p)
         };
 
         // Calculate result point
         // xᵣ = m² - x₁ - x₂
-        let xr = self.mod_positive(&(&m * &m - x1 - x2));
+        let xr = m
+            .mul_mod(&m, &self.p)
+            .sub_mod(x1, &self.p)
+            .sub_mod(x2, &self.p);
 
         // yᵣ = m(x₁ - xᵣ) - y₁
-        let yr = self.mod_positive(&(&m * (x1 - &xr) - y1));
+        let yr = m
+            .mul_mod(&x1.sub_mod(&xr, &self.p), &self.p)
+            .sub_mod(y1, &self.p);
 
         EllipticPoint { x: xr, y: yr }
     }
 
     /// Scalar multiplication using double-and-add algorithm
-    fn scalar_multiply(&self, point: &EllipticPoint, scalar: &BigInt) -> EllipticPoint {
+    fn scalar_multiply(
+        &self,
+        point: &EllipticPoint<LIMBS>,
+        scalar: &Uint<LIMBS>,
+    ) -> EllipticPoint<LIMBS> {
         let mut result = EllipticPoint::identity();
         let mut temp = point.clone();
-        let mut k = scalar.clone();
 
-        while k > BigInt::from(0) {
-            if &k % 2 == BigInt::from(1) {
+        for i in 0..LIMBS * Limb::BITS as usize - 1 {
+            if scalar.bit(i as u32).into() {
                 result = self.point_add(&result, &temp);
             }
             temp = self.point_add(&temp, &temp);
-            k >>= 1;
         }
-
         result
     }
 
     /// Verifies that a point lies on the curve
-    pub fn verify_point(&self, point: &EllipticPoint) -> bool {
+    pub fn verify_point(&self, point: &EllipticPoint<LIMBS>) -> bool {
         if point.is_identity() {
             return true;
         }
 
         // Verify: y² = x³ + ax + b (mod p)
-        let left = self.mod_positive(&(&point.y * &point.y));
-        let right =
-            self.mod_positive(&(&point.x * &point.x * &point.x + &self.a * &point.x + &self.b));
+        let left = point.y.mul_mod(&point.y, &self.p);
+        let x3 = point
+            .x
+            .mul_mod(&point.x, &self.p)
+            .mul_mod(&point.x, &self.p);
+        let ax = self.a.mul_mod(&point.x, &self.p);
+        let right = x3.add_mod(&ax, &self.p).add_mod(&self.b, &self.p);
         left == right
     }
 }
 
 /// Elliptic curve point
 #[derive(Debug, Clone, PartialEq)]
-pub struct EllipticPoint {
-    pub x: BigInt,
-    pub y: BigInt,
+pub struct EllipticPoint<const LIMBS: usize>
+where
+    Uint<LIMBS>: Encoding,
+{
+    pub x: Uint<LIMBS>,
+    pub y: Uint<LIMBS>,
 }
 
-impl EllipticPoint {
+impl<const LIMBS: usize, const WIDE_LIMBS: usize, const UNSAT_LIMBS: usize> EllipticPoint<LIMBS>
+where
+    Uint<LIMBS>: Concat<Output = Uint<WIDE_LIMBS>> + Encoding,
+    Uint<WIDE_LIMBS>: Split<Output = Uint<LIMBS>> + Encoding,
+    Odd<Uint<LIMBS>>: PrecomputeInverter<Inverter = SafeGcdInverter<LIMBS, UNSAT_LIMBS>>,
+{
+    const SIZE: usize = LIMBS * Limb::BYTES;
     /// Creates a new elliptic curve point
-    pub fn new(x: BigInt, y: BigInt) -> Self {
+    pub fn new(x: Uint<LIMBS>, y: Uint<LIMBS>) -> Self {
         Self { x, y }
     }
 
     /// Creates the identity (point at infinity)
     pub fn identity() -> Self {
         Self {
-            x: BigInt::from(0),
-            y: BigInt::from(0),
+            x: Uint::ZERO,
+            y: Uint::ZERO,
         }
     }
 
     /// Checks if this is the identity point
     pub fn is_identity(&self) -> bool {
-        self.x == BigInt::from(0) && self.y == BigInt::from(0)
+        self.x == Uint::ZERO && self.y == Uint::ZERO
     }
 
     /// Converts the point to compressed format (SEC1)
@@ -218,20 +196,15 @@ impl EllipticPoint {
         let mut result = Vec::with_capacity(1 + coord_size);
 
         // Prefix: 0x02 if y is even, 0x03 if y is odd
-        let y_bytes = self.y.to_bytes_be().1;
-        let prefix = if y_bytes.last().map(|b| b & 1).unwrap_or(0) == 0 {
-            0x02
-        } else {
-            0x03
-        };
+        let prefix = if self.y.is_even().into() { 0x02 } else { 0x03 };
 
         result.push(prefix);
 
         // Add x coordinate (padded to coord_size)
-        let x_bytes = self.x.to_bytes_be().1;
-        let padding = coord_size.saturating_sub(x_bytes.len());
-        result.extend(std::iter::repeat_n(0, padding));
-        result.extend_from_slice(&x_bytes);
+        let x_bytes = Encoding::to_be_bytes(&self.x);
+        let padding = coord_size.saturating_sub(x_bytes.as_ref().len());
+        result.extend(std::iter::repeat(0).take(padding));
+        result.extend_from_slice(x_bytes.as_ref());
 
         result
     }
@@ -244,22 +217,25 @@ impl EllipticPoint {
         result.push(0x04);
 
         // Add x coordinate (padded to coord_size)
-        let x_bytes = self.x.to_bytes_be().1;
-        let x_padding = coord_size.saturating_sub(x_bytes.len());
-        result.extend(std::iter::repeat_n(0, x_padding));
-        result.extend_from_slice(&x_bytes);
+        let x_bytes = Encoding::to_be_bytes(&self.x);
+        let x_padding = coord_size.saturating_sub(x_bytes.as_ref().len());
+        result.extend(std::iter::repeat(0).take(x_padding));
+        result.extend_from_slice(x_bytes.as_ref());
 
         // Add y coordinate (padded to coord_size)
-        let y_bytes = self.y.to_bytes_be().1;
-        let y_padding = coord_size.saturating_sub(y_bytes.len());
-        result.extend(std::iter::repeat_n(0, y_padding));
-        result.extend_from_slice(&y_bytes);
+        let y_bytes = Encoding::to_be_bytes(&self.y);
+        let y_padding = coord_size.saturating_sub(y_bytes.as_ref().len());
+        result.extend(std::iter::repeat(0).take(y_padding));
+        result.extend_from_slice(y_bytes.as_ref());
 
         result
     }
 
     /// Parses a point from SEC1 format (compressed or uncompressed)
-    pub fn from_bytes(data: &[u8], _curve: &EllipticCurve) -> Result<Self, &'static str> {
+    pub fn from_bytes(
+        data: &[u8],
+        _curve: &EllipticCurve<LIMBS, WIDE_LIMBS, UNSAT_LIMBS>,
+    ) -> Result<Self, &'static str> {
         if data.is_empty() {
             return Err("Empty point data");
         }
@@ -267,13 +243,12 @@ impl EllipticPoint {
         match data[0] {
             0x04 => {
                 // Uncompressed format
-                if data.len() < 3 {
+                if data.len() != Self::SIZE * 2 + 1 {
                     return Err("Invalid uncompressed point length");
                 }
 
-                let coord_size = (data.len() - 1) / 2;
-                let x = BigInt::from_bytes_be(Sign::Plus, &data[1..1 + coord_size]);
-                let y = BigInt::from_bytes_be(Sign::Plus, &data[1 + coord_size..]);
+                let x = Uint::<LIMBS>::from_be_slice(&data[1..1 + Self::SIZE]);
+                let y = Uint::<LIMBS>::from_be_slice(&data[1 + Self::SIZE..]);
 
                 Ok(Self::new(x, y))
             }
@@ -289,48 +264,36 @@ impl EllipticPoint {
 }
 
 /// ECDH provider with manual elliptic curve implementation
-pub struct EcdhProvider {
-    curve: EllipticCurve,
-    coord_size: usize,
+pub struct EcdhProvider<const LIMBS: usize, const WIDE_LIMBS: usize, const UNSAT_LIMBS: usize>
+where
+    Uint<LIMBS>: Concat<Output = Uint<WIDE_LIMBS>> + Encoding,
+    Uint<WIDE_LIMBS>: Split<Output = Uint<LIMBS>> + Encoding,
+    Odd<Uint<LIMBS>>: PrecomputeInverter<Inverter = SafeGcdInverter<LIMBS, UNSAT_LIMBS>>,
+{
+    curve: EllipticCurve<LIMBS, WIDE_LIMBS, UNSAT_LIMBS>,
 }
 
-impl EcdhProvider {
+impl<const LIMBS: usize, const WIDE_LIMBS: usize, const UNSAT_LIMBS: usize>
+    EcdhProvider<LIMBS, WIDE_LIMBS, UNSAT_LIMBS>
+where
+    Uint<LIMBS>: Concat<Output = Uint<WIDE_LIMBS>> + Encoding,
+    Uint<WIDE_LIMBS>: Split<Output = Uint<LIMBS>> + Encoding,
+    Odd<Uint<LIMBS>>: PrecomputeInverter<Inverter = SafeGcdInverter<LIMBS, UNSAT_LIMBS>>,
+{
+    const SIZE: usize = LIMBS * Limb::BYTES;
     /// Creates a new ECDH provider with the specified curve
-    pub fn new(curve_type: EllipticCurveType) -> Self {
-        match curve_type {
-            EllipticCurveType::Secp192K1 => Self {
-                curve: EllipticCurve::secp192k1(),
-                coord_size: 24, // 192 bits = 24 bytes
-            },
-            EllipticCurveType::Prime256V1 => Self {
-                curve: EllipticCurve::prime256v1(),
-                coord_size: 32, // 256 bits = 32 bytes
-            },
-        }
-    }
-
-    /// Creates a provider for Prime256V1 (P-256) curve
-    pub fn prime256v1() -> Self {
-        Self::new(EllipticCurveType::Prime256V1)
-    }
-
-    /// Creates a provider for Secp192K1 curve
-    pub fn secp192k1() -> Self {
-        Self::new(EllipticCurveType::Secp192K1)
+    pub fn new(curve: EllipticCurve<LIMBS, WIDE_LIMBS, UNSAT_LIMBS>) -> Self {
+        Self { curve }
     }
 
     /// Generates a random secret key
-    pub fn generate_secret(&self) -> Vec<u8> {
-        let mut rng = rand::thread_rng();
-        let mut secret = vec![0u8; self.coord_size];
-        rng.fill(&mut secret[..]);
-        secret
+    pub fn generate_secret(&self) -> Uint<LIMBS> {
+        Uint::<LIMBS>::random_mod(&mut OsRng, &self.curve.n)
     }
 
     /// Computes the public key from a secret
-    pub fn get_public_key(&self, secret: &[u8]) -> EllipticPoint {
-        let secret_int = BigInt::from_bytes_be(Sign::Plus, secret);
-        self.curve.scalar_multiply(&self.curve.g, &secret_int)
+    pub fn get_public_key(&self, secret: &Uint<LIMBS>) -> EllipticPoint<LIMBS> {
+        self.curve.scalar_multiply(&self.curve.g, secret)
     }
 
     /// Generates a new key pair and returns the public key in specified format
@@ -339,9 +302,9 @@ impl EcdhProvider {
         let public = self.get_public_key(&secret);
 
         if compressed {
-            public.to_compressed(self.coord_size)
+            public.to_compressed(Self::SIZE)
         } else {
-            public.to_uncompressed(self.coord_size)
+            public.to_uncompressed(Self::SIZE)
         }
     }
 
@@ -351,7 +314,7 @@ impl EcdhProvider {
     /// - hash_with_md5: If true, returns MD5 hash of the shared x-coordinate
     pub fn key_exchange(
         &self,
-        secret: &[u8],
+        secret: &Uint<LIMBS>,
         peer_public: &[u8],
         hash_with_md5: bool,
     ) -> Result<Vec<u8>, &'static str> {
@@ -364,41 +327,31 @@ impl EcdhProvider {
         }
 
         // Perform scalar multiplication
-        let secret_int = BigInt::from_bytes_be(Sign::Plus, secret);
-        let shared_point = self.curve.scalar_multiply(&peer_point, &secret_int);
+        let shared_point = self.curve.scalar_multiply(&peer_point, secret);
 
         // Use x-coordinate as shared secret
-        let shared_secret = shared_point.x.to_bytes_be().1;
+        let shared_secret = Encoding::to_be_bytes(&shared_point.x);
 
         if hash_with_md5 {
-            Ok(md5::compute(&shared_secret).0.to_vec())
+            Ok(md5::compute(shared_secret).0.to_vec())
         } else {
-            Ok(shared_secret)
+            Ok(shared_secret.as_ref().to_vec())
         }
     }
 
     /// Packs a public key point into bytes
-    pub fn pack_public_key(&self, point: &EllipticPoint, compressed: bool) -> Vec<u8> {
+    pub fn pack_public_key(&self, point: &EllipticPoint<LIMBS>, compressed: bool) -> Vec<u8> {
         if compressed {
-            point.to_compressed(self.coord_size)
+            point.to_compressed(Self::SIZE)
         } else {
-            point.to_uncompressed(self.coord_size)
+            point.to_uncompressed(Self::SIZE)
         }
     }
 
     /// Unpacks a public key from bytes into a point
-    pub fn unpack_public_key(&self, data: &[u8]) -> Result<EllipticPoint, &'static str> {
+    pub fn unpack_public_key(&self, data: &[u8]) -> Result<EllipticPoint<LIMBS>, &'static str> {
         EllipticPoint::from_bytes(data, &self.curve)
     }
-}
-
-/// Elliptic curve type selector
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum EllipticCurveType {
-    /// Secp192K1 (192-bit Koblitz curve)
-    Secp192K1,
-    /// Prime256V1 (NIST P-256)
-    Prime256V1,
 }
 
 #[cfg(test)]
@@ -407,19 +360,19 @@ mod tests {
 
     #[test]
     fn test_curve_point_validation() {
-        let curve = EllipticCurve::prime256v1();
+        let curve = PRIME256V1;
 
         // Generator should be on the curve
         assert!(curve.verify_point(&curve.g));
 
         // Random point should not be on the curve
-        let random_point = EllipticPoint::new(BigInt::from(12345), BigInt::from(67890));
+        let random_point = EllipticPoint::new(Uint::from(12345u32), Uint::from(67890u32));
         assert!(!curve.verify_point(&random_point));
     }
 
     #[test]
     fn test_point_addition() {
-        let curve = EllipticCurve::prime256v1();
+        let curve = PRIME256V1;
 
         // G + G = 2G
         let doubled = curve.point_add(&curve.g, &curve.g);
@@ -433,20 +386,20 @@ mod tests {
 
     #[test]
     fn test_scalar_multiplication() {
-        let curve = EllipticCurve::prime256v1();
+        let curve = PRIME256V1;
 
         // 1 * G = G
-        let result = curve.scalar_multiply(&curve.g, &BigInt::from(1));
+        let result = curve.scalar_multiply(&curve.g, &Uint::from(1u32));
         assert_eq!(result, curve.g);
 
         // 2 * G should be on the curve
-        let result = curve.scalar_multiply(&curve.g, &BigInt::from(2));
+        let result = curve.scalar_multiply(&curve.g, &Uint::from(2u32));
         assert!(curve.verify_point(&result));
     }
 
     #[test]
     fn test_ecdh_key_exchange() {
-        let provider = EcdhProvider::prime256v1();
+        let provider = EcdhProvider::new(PRIME256V1);
 
         // Generate Alice's keypair
         let alice_secret = provider.generate_secret();
@@ -475,7 +428,7 @@ mod tests {
 
     #[test]
     fn test_point_serialization() {
-        let curve = EllipticCurve::prime256v1();
+        let curve = PRIME256V1;
 
         // Test uncompressed format
         let uncompressed = curve.g.to_uncompressed(32);
@@ -490,8 +443,8 @@ mod tests {
 
     #[test]
     fn test_point_deserialization() {
-        let curve = EllipticCurve::prime256v1();
-        let provider = EcdhProvider::prime256v1();
+        let curve = PRIME256V1;
+        let provider = EcdhProvider::new(PRIME256V1);
 
         // Serialize and deserialize
         let original = curve.g.clone();

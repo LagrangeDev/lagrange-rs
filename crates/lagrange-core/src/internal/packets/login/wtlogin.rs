@@ -1,12 +1,14 @@
 use super::{tlv::Tlv, tlv_qrcode::TlvQrCode};
+use crate::utils::crypto::ecdh::SECP192K1;
 use crate::{
     common::AppInfo,
     keystore::BotKeystore,
     utils::{
         binary::{BinaryPacket, Prefix},
-        crypto::{EcdhProvider, EllipticCurveType, TeaProvider},
+        crypto::{EcdhProvider, TeaProvider},
     },
 };
+use crypto_bigint::Uint;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 const SERVER_PUBLIC_KEY: [u8; 49] = [
@@ -29,17 +31,17 @@ pub struct WtLogin<'a> {
     share_key: Vec<u8>,
     keystore: &'a BotKeystore,
     app_info: &'a AppInfo,
-    ecdh_provider: EcdhProvider,
+    ecdh_provider: EcdhProvider<3, 6, 5>,
 }
 
 impl<'a> WtLogin<'a> {
     pub fn new(keystore: &'a BotKeystore, app_info: &'a AppInfo) -> Result<Self, &'static str> {
-        let ecdh_provider = EcdhProvider::new(EllipticCurveType::Secp192K1);
+        let ecdh_provider = EcdhProvider::new(SECP192K1);
 
         // Get the secret key from keystore state
         // For now, we'll generate a new one if not available
         let secret = if let Some(ref exchange_key) = keystore.state.exchange_key {
-            exchange_key.clone()
+            Uint::<3>::from_be_slice(exchange_key.as_slice())
         } else {
             ecdh_provider.generate_secret()
         };
