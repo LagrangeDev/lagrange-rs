@@ -1,0 +1,59 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/lagrange-core",
+    "crates/lagrange-macros",
+    "crates/lagrange-proto",
+    "crates/lagrange-proto-derive",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = []
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/yourusername/lagrange-rs"
+
+[workspace.dependencies]
+# Async runtime
+tokio = { version = "1.42", features = ["full"] }
+futures = "0.3"
+async-trait = "0.1"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_bytes = "0.11"
+bytes = "1.9"
+
+# Concurrency
+dashmap = "6.1"
+
+# Error handling
+thiserror = "2.0"
+anyhow = "1.0"
+
+# Macros
+inventory = "0.3"
+syn = { version = "2.0", features = ["full"] }
+quote = "1.0"
+proc-macro2 = "1.0"
+
+# Logging
+tracing = "0.1"
+
+# Time
+chrono = { version = "0.4", features = ["serde"] }
+
+# Random
+rand = "0.8"
+
+# Internal dependencies
+lagrange-macros = { path = "crates/lagrange-macros" }
+lagrange-proto = { path = "crates/lagrange-proto" }
+lagrange-proto-derive = { path = "crates/lagrange-proto-derive" }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
