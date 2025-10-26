@@ -4,15 +4,14 @@ pub mod internal;
 pub mod config;
 pub mod keystore;
 pub mod error;
-pub mod services;
 pub mod common;
 pub mod utils;
 
 pub use context::BotContext;
-pub use protocol::{EventMessage, Protocols, ProtocolEvent};
+pub use protocol::{EventMessage, ProtocolEvent, Protocols};
 pub use error::{Error, Result};
 
-/// Prelude module for service definitions.
+/// Prelude module for services definitions.
 ///
 /// This module provides a convenient import for all commonly used types
 /// when defining services with the `define_service!` macro.
@@ -32,13 +31,13 @@ pub use error::{Error, Result};
 /// ```
 ///
 /// This imports:
-/// - `RequestType` and `EncryptType` for service metadata
-/// - `BotContext` for service handlers
+/// - `RequestType` and `EncryptType` for services metadata
+/// - `BotContext` for services handlers
 /// - `Bytes` for data handling
 /// - `Arc` for shared references
 /// - `Result` for error handling
 pub mod service_prelude {
-    //! Prelude for service definitions.
+    //! Prelude for services definitions.
     //!
     //! Import this module to get all commonly needed types for defining services:
     //!
@@ -48,7 +47,7 @@ pub mod service_prelude {
 
     pub use crate::context::BotContext;
     pub use crate::error::Result;
-    pub use crate::protocol::{EncryptType, RequestType, ProtocolEvent};
+    pub use crate::protocol::{EncryptType, ProtocolEvent, RequestType};
     pub use bytes::Bytes;
     pub use std::sync::Arc;
 }

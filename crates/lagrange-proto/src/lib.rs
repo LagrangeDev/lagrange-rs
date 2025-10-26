@@ -19,7 +19,7 @@ pub use types::{Fixed32, Fixed64, SFixed32, SFixed64, SInt32, SInt64};
 pub use unknown_fields::{UnknownField, UnknownFields};
 
 #[cfg(feature = "derive")]
-pub use lagrange_proto_derive::{ProtoEnum, ProtoMessage, ProtoOneof};
+pub use lagrange_proto_derive::{ProtoBuilder, ProtoEnum, ProtoMessage, ProtoOneof};
 
 use bytes::{Bytes, BytesMut};
 

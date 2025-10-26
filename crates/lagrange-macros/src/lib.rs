@@ -1,7 +1,7 @@
 //! Procedural macros for the lagrange-rs QQ protocol library.
 //!
 //! This crate provides three main macros:
-//! - `#[service]` - Attribute macro for service registration
+//! - `#[services]` - Attribute macro for services registration
 //! - `#[event_subscribe]` - Attribute macro for event handler registration
 //! - `define_service!` - Declarative macro for defining complete services
 
@@ -12,9 +12,9 @@ mod service;
 mod event_subscribe;
 mod define_service;
 
-/// Attribute macro for service registration.
+/// Attribute macro for services registration.
 ///
-/// See the `service` module documentation for details.
+/// See the `services` module documentation for details.
 #[proc_macro_attribute]
 pub fn service(attr: TokenStream, item: TokenStream) -> TokenStream {
     service::service_impl(attr, item)

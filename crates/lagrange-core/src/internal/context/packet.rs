@@ -1,6 +1,6 @@
 use crate::{
     error::{Error, Result},
-    internal::service::SsoPacket,
+    internal::services::SsoPacket,
 };
 use bytes::Bytes;
 use dashmap::DashMap;

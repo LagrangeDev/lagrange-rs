@@ -19,7 +19,7 @@ Automatically registers a service with the service registry and generates requir
 
 ```rust
 #[service(
-    command = "service.command.name",
+    command = "services.command.name",
     request_type = RequestType::Variant,  // Optional
     encrypt_type = EncryptType::Variant,  // Optional
     disable_log = true                     // Optional, defaults to false

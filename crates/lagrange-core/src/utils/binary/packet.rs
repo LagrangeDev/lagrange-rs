@@ -10,7 +10,6 @@ pub enum PacketError {
     },
     InvalidUtf8(std::str::Utf8Error),
     InvalidPrefix,
-    NoActiveBarrier,
 }
 
 impl fmt::Display for PacketError {
@@ -26,7 +25,6 @@ impl fmt::Display for PacketError {
             ),
             Self::InvalidUtf8(e) => write!(f, "Invalid UTF-8: {}", e),
             Self::InvalidPrefix => write!(f, "Invalid prefix flag"),
-            Self::NoActiveBarrier => write!(f, "No active barrier to exit"),
         }
     }
 }
@@ -55,35 +53,32 @@ pub type Result<T> = std::result::Result<T, PacketError>;
 ///
 /// // Chain write operations fluently
 /// packet
-///     .write(0x01u8).unwrap()
+///     .write(0x01u8)
 ///     .write_bytes(&[0xAA, 0xBB, 0xCC])
-///     .write(0x1234u16).unwrap()
-///     .write_str("Hello", Prefix::INT16).unwrap()
-///     .write(0xDEADBEEFu32).unwrap();
+///     .write(0x1234u16)
+///     .write_str("Hello", Prefix::INT16)
+///     .write(0xDEADBEEFu32);
 ///
 /// let data = packet.to_vec();
 /// ```
 ///
-/// ## Using Length Barriers
+/// ## Using Length Prefixes
 ///
 /// ```
 /// use lagrange_core::utils::binary::packet::BinaryPacket;
 ///
 /// let mut packet = BinaryPacket::with_capacity(64);
 ///
-/// packet
-///     .enter_length_barrier::<u32>()
-///     .write(0xABu8).unwrap()
-///     .write(0x1234u16).unwrap()
-///     .write(0x5678u16).unwrap();
-///
-/// packet.exit_length_barrier::<u32>(false, 0).unwrap();
+/// packet.with_length_prefix::<u32, _, _>(false, 0, |w| {
+///     w.write(0xABu8)
+///      .write(0x1234u16)
+///      .write(0x5678u16);
+/// }).unwrap();
 /// ```
 #[derive(Debug)]
 pub struct BinaryPacket {
     buffer: Vec<u8>,
     offset: usize,
-    barrier: Option<usize>,
 }
 
 impl BinaryPacket {
@@ -92,7 +87,6 @@ impl BinaryPacket {
         Self {
             buffer: Vec::with_capacity(capacity),
             offset: 0,
-            barrier: None,
         }
     }
 
@@ -101,7 +95,6 @@ impl BinaryPacket {
         Self {
             buffer,
             offset: 0,
-            barrier: None,
         }
     }
 
@@ -110,7 +103,6 @@ impl BinaryPacket {
         Self {
             buffer: slice.to_vec(),
             offset: 0,
-            barrier: None,
         }
     }
 
@@ -159,7 +151,7 @@ impl BinaryPacket {
     }
 
     #[inline]
-    pub fn write<T: EndianSwap + Copy>(&mut self, value: T) -> Result<&mut Self> {
+    pub fn write<T: EndianSwap + Copy>(&mut self, value: T) -> &mut Self {
         let swapped = to_be(value);
         let size = std::mem::size_of::<T>();
         self.ensure_capacity(size);
@@ -170,7 +162,7 @@ impl BinaryPacket {
         }
 
         self.offset += size;
-        Ok(self)
+        self
     }
 
     #[inline]
@@ -203,37 +195,37 @@ impl BinaryPacket {
     }
 
     #[inline]
-    fn write_length(&mut self, length: usize, prefix: Prefix, addition: i32) -> Result<&mut Self> {
+    fn write_length(&mut self, length: usize, prefix: Prefix, addition: i32) -> &mut Self {
         let len = self.calculate_length(length, prefix, addition);
         let prefix_len = prefix.prefix_length();
 
         match prefix_len {
-            1 => { self.write(len as u8)?; }
-            2 => { self.write(len as u16)?; }
-            4 => { self.write(len as u32)?; }
+            1 => { self.write(len as u8); }
+            2 => { self.write(len as u16); }
+            4 => { self.write(len as u32); }
             0 => {}
-            _ => return Err(PacketError::InvalidPrefix),
+            _ => panic!("Invalid prefix length: {}", prefix_len),
         }
 
-        Ok(self)
+        self
     }
 
     #[inline]
-    pub fn write_bytes_with_prefix(&mut self, data: &[u8], prefix: Prefix) -> Result<&mut Self> {
-        self.write_length(data.len(), prefix, 0)?;
+    pub fn write_bytes_with_prefix(&mut self, data: &[u8], prefix: Prefix) -> &mut Self {
+        self.write_length(data.len(), prefix, 0);
         self.write_bytes(data);
-        Ok(self)
+        self
     }
 
     #[inline]
-    pub fn write_str(&mut self, s: &str, prefix: Prefix) -> Result<&mut Self> {
+    pub fn write_str(&mut self, s: &str, prefix: Prefix) -> &mut Self {
         let bytes = s.as_bytes();
         if prefix.prefix_length() > 0 {
-            self.write_bytes_with_prefix(bytes, prefix)?;
+            self.write_bytes_with_prefix(bytes, prefix);
         } else {
             self.write_bytes(bytes);
         }
-        Ok(self)
+        self
     }
 
     #[inline]
@@ -334,43 +326,69 @@ impl BinaryPacket {
         self
     }
 
+    /// Writes a length-prefixed section using a closure-based approach.
+    ///
+    /// This method provides a functional, RAII-compliant way to write length-prefixed data.
+    /// It automatically reserves space for the length prefix, executes the provided closure
+    /// to write data, calculates the written length, and writes it back to the reserved space.
+    ///
+    /// # Type Parameters
+    ///
+    /// * `T` - The type of the length prefix (e.g., `u16`, `u32`)
+    /// * `F` - The closure type that performs the write operations
+    /// * `R` - The return type of the closure (optional, defaults to `()`)
+    ///
+    /// # Parameters
+    ///
+    /// * `include_prefix` - Whether to include the prefix size in the length calculation
+    /// * `addition` - Additional offset to add to the calculated length
+    /// * `f` - Closure that receives `&mut Self` and performs write operations
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(R)` containing the closure's return value, or `Err` if writing the length fails.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use lagrange_core::utils::binary::packet::BinaryPacket;
+    ///
+    /// let mut packet = BinaryPacket::with_capacity(64);
+    ///
+    /// packet.with_length_prefix::<u32, _, _>(true, 0, |w| {
+    ///     w.write(0x12i32)
+    ///      .write(0x34u16)
+    ///      .write_bytes(&[0xAA, 0xBB, 0xCC]);
+    /// }).unwrap();
+    /// ```
     #[inline]
-    pub fn enter_length_barrier<T: EndianSwap + Copy>(&mut self) -> &mut Self {
-        self.barrier = Some(self.offset);
-        let size = std::mem::size_of::<T>();
-        self.ensure_capacity(size);
-        self.offset += size;
-        self
-    }
-
-    #[inline]
-    pub fn exit_length_barrier<T: EndianSwap + Copy>(
+    pub fn with_length_prefix<T, F, R>(
         &mut self,
         include_prefix: bool,
         addition: i32,
-    ) -> Result<()> {
-        let barrier = self.barrier.ok_or(PacketError::NoActiveBarrier)?;
-
+        f: F,
+    ) -> Result<R>
+    where
+        T: EndianSwap + Copy,
+        F: FnOnce(&mut Self) -> R,
+    {
+        let barrier = self.offset;
         let size = std::mem::size_of::<T>();
-        let mut written = (self.offset - barrier) as i32 + addition;
+        self.ensure_capacity(size);
+        self.offset += size;
 
+        let result = f(self);
+
+        let mut written = (self.offset - barrier) as i32 + addition;
         if !include_prefix {
             written -= size as i32;
         }
 
         self.write_at(barrier, written as u32)?;
-        self.barrier = None;
 
-        Ok(())
+        Ok(result)
     }
 
-    #[inline]
-    pub fn exit_custom_barrier<T: EndianSwap + Copy>(&mut self, value: T) -> Result<()> {
-        let barrier = self.barrier.ok_or(PacketError::NoActiveBarrier)?;
-        self.write_at(barrier, value)?;
-        self.barrier = None;
-        Ok(())
-    }
 
     #[inline]
     pub fn to_vec(mut self) -> Vec<u8> {
@@ -422,12 +440,12 @@ mod tests {
     fn test_write_read_integers() {
         let mut packet = BinaryPacket::with_capacity(64);
 
-        // Test method chaining with Result
+        // Test method chaining
         packet
-            .write(0x12u8).unwrap()
-            .write(0x1234u16).unwrap()
-            .write(0x12345678u32).unwrap()
-            .write(0x123456789ABCDEFu64).unwrap();
+            .write(0x12u8)
+            .write(0x1234u16)
+            .write(0x12345678u32)
+            .write(0x123456789ABCDEFu64);
 
         let mut read_packet = BinaryPacket::from(packet.to_vec());
 
@@ -454,10 +472,10 @@ mod tests {
     fn test_write_read_strings() {
         let mut packet = BinaryPacket::with_capacity(64);
 
-        // Test method chaining with Result
+        // Test method chaining
         packet
-            .write_str("hello", Prefix::INT16).unwrap()
-            .write_str("world", Prefix::INT32).unwrap();
+            .write_str("hello", Prefix::INT16)
+            .write_str("world", Prefix::INT32);
 
         let mut read_packet = BinaryPacket::from(packet.to_vec());
 
@@ -466,15 +484,14 @@ mod tests {
     }
 
     #[test]
-    fn test_length_barrier() {
+    fn test_length_prefix() {
         let mut packet = BinaryPacket::with_capacity(64);
 
-        // Test method chaining with barrier
-        packet
-            .enter_length_barrier::<u32>()
-            .write(0x1234u16).unwrap()
-            .write(0x5678u16).unwrap();
-        packet.exit_length_barrier::<u32>(false, 0).unwrap();
+        // Test method chaining with length prefix
+        packet.with_length_prefix::<u32, _, _>(false, 0, |w| {
+            w.write(0x1234u16);
+            w.write(0x5678u16);
+        }).unwrap();
 
         let mut read_packet = BinaryPacket::from(packet.to_vec());
 
@@ -526,11 +543,11 @@ mod tests {
 
         // Demonstrate fluent API with mixed operations
         packet
-            .write(0xAAu8).unwrap()
+            .write(0xAAu8)
             .write_bytes(&[1, 2, 3, 4])
-            .write(0xBBCCu16).unwrap()
-            .write_str("test", Prefix::INT16).unwrap()
-            .write(0xDDEEFFu32).unwrap();
+            .write(0xBBCCu16)
+            .write_str("test", Prefix::INT16)
+            .write(0xDDEEFFu32);
 
         let vec = packet.to_vec();
         assert!(vec.len() > 0);
@@ -541,7 +558,7 @@ mod tests {
         let mut packet = BinaryPacket::with_capacity(64);
 
         let prefix = Prefix::INT16 | Prefix::WITH_PREFIX;
-        packet.write_str("hello", prefix).unwrap();
+        packet.write_str("hello", prefix);
 
         let mut read_packet = BinaryPacket::from(packet.to_vec());
 

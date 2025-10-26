@@ -8,7 +8,7 @@ use syn::{
 
 use crate::utils::{validate_path_structure, suggest_closest_match};
 
-/// Struct field definition for service! macro
+/// Struct field definition for services! macro
 struct ServiceField {
     name: Ident,
     ty: Type,
@@ -83,7 +83,7 @@ impl Parse for ServiceField {
     }
 }
 
-/// Arguments for the unified service! macro
+/// Arguments for the unified services! macro
 struct UnifiedServiceArgs {
     service_name: Ident,
     command: String,
@@ -243,12 +243,12 @@ impl Parse for UnifiedServiceArgs {
     }
 }
 
-/// Defines a service with request/response types and protocol handling.
+/// Defines a services with request/response types and protocol handling.
 ///
-/// This macro generates a complete service implementation including:
+/// This macro generates a complete services implementation including:
 /// - Request and Response event structs with constructors and getters
 /// - Service struct with BaseService trait implementation
-/// - Automatic service registration via inventory
+/// - Automatic services registration via inventory
 /// - Proper documentation for all generated types
 ///
 /// # Syntax
@@ -262,7 +262,7 @@ impl Parse for UnifiedServiceArgs {
 ///         // Optional: Specify encryption type (default: EncryptType::EncryptD2Key)
 ///         encrypt_type: EncryptType::EncryptEmpty,  // or EncryptType::EncryptD2Key
 ///
-///         // Optional: Disable logging for this service (default: false)
+///         // Optional: Disable logging for this services (default: false)
 ///         disable_log: true,
 ///
 ///         // Required: Define the request event structure
@@ -484,14 +484,14 @@ pub(crate) fn define_service_impl(input: TokenStream) -> TokenStream {
 
     let expanded = quote! {
         // Command constant for easy access and IDE navigation
-        #[doc = "Protocol command string for this service."]
+        #[doc = "Protocol command string for this services."]
         pub const #command_const_name: &str = #command;
 
         // Request event struct with comprehensive derives
         #[doc = #request_doc]
         #[doc = ""]
         #[doc = "This struct represents a request event that can be sent to trigger"]
-        #[doc = "the service operation."]
+        #[doc = "the services operation."]
         #[derive(Debug, Clone, PartialEq)]
         pub struct #request_name {
             #(#request_fields),*
@@ -514,7 +514,7 @@ pub(crate) fn define_service_impl(input: TokenStream) -> TokenStream {
         // Response event struct with comprehensive derives
         #[doc = #response_doc]
         #[doc = ""]
-        #[doc = "This struct represents the response from the service operation."]
+        #[doc = "This struct represents the response from the services operation."]
         #[derive(Debug, Clone, PartialEq)]
         pub struct #response_name {
             #(#response_fields),*
@@ -537,7 +537,7 @@ pub(crate) fn define_service_impl(input: TokenStream) -> TokenStream {
         // Service struct
         #[doc = #service_doc]
         #[doc = ""]
-        #[doc = "This service implements protocol handling for the command and provides"]
+        #[doc = "This services implements protocol handling for the command and provides"]
         #[doc = "methods to parse incoming data and build outgoing requests."]
         #[derive(Debug)]
         pub struct #service_name {
@@ -545,13 +545,13 @@ pub(crate) fn define_service_impl(input: TokenStream) -> TokenStream {
         }
 
         impl #service_name {
-            #[doc = "Get the protocol command string for this service."]
+            #[doc = "Get the protocol command string for this services."]
             #[inline]
             pub const fn command() -> &'static str {
                 #command
             }
 
-            #[doc = "Get the service metadata."]
+            #[doc = "Get the services metadata."]
             #[inline]
             pub fn metadata(&self) -> &crate::protocol::ServiceMetadata {
                 &self.metadata
@@ -571,19 +571,19 @@ pub(crate) fn define_service_impl(input: TokenStream) -> TokenStream {
 
         // BaseService implementation with explicit types
         #[async_trait::async_trait]
-        impl crate::internal::service::BaseService for #service_name {
+        impl crate::internal::services::BaseService for #service_name {
             type Request = #request_name;
             type Response = #response_name;
 
             #[doc = "Parse incoming bytes into a response event."]
             #[doc = ""]
-            #[doc = "This method is called when the service receives data from the protocol layer."]
+            #[doc = "This method is called when the services receives data from the protocol layer."]
             #[inline]
             async fn parse_impl(&self, #parse_params) -> #parse_return_type #parse_body
 
             #[doc = "Build outgoing bytes from a request event."]
             #[doc = ""]
-            #[doc = "This method is called when the service needs to send a request."]
+            #[doc = "This method is called when the services needs to send a request."]
             #[inline]
             async fn build_impl(&self, #build_params) -> #build_return_type #build_body
 
@@ -595,7 +595,7 @@ pub(crate) fn define_service_impl(input: TokenStream) -> TokenStream {
 
         // Service registration
         inventory::submit! {
-            crate::internal::service::ServiceRegistration {
+            crate::internal::services::ServiceRegistration {
                 command: #command,
                 factory: || Box::new(#service_name::default()),
             }

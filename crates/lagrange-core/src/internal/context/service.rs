@@ -1,7 +1,7 @@
 use crate::{
     config::BotConfig,
     error::{Error, Result},
-    internal::service::{Service, ServiceRegistration, SsoPacket},
+    internal::services::{Service, ServiceRegistration, SsoPacket},
     protocol::{EventMessage, Protocols},
 };
 use bytes::Bytes;

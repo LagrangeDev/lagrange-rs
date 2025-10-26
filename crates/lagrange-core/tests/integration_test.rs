@@ -1,10 +1,10 @@
 use lagrange_core::{
     config::BotConfig,
     keystore::BotKeystore,
-    services::LoginEvent,
     BotContext, Protocols,
 };
 use bytes::Bytes;
+use lagrange_core::internal::services::LoginEvent;
 
 #[tokio::test]
 async fn test_bot_context_creation() {
@@ -141,7 +141,7 @@ fn test_service_metadata() {
 
 #[tokio::test]
 async fn test_service_registration() {
-    use lagrange_core::internal::service::SsoPacket;
+    use lagrange_core::internal::services::SsoPacket;
 
     // Create a bot context which initializes the ServiceContext
     let bot = BotContext::builder().build();

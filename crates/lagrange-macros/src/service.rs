@@ -62,7 +62,7 @@ impl Parse for ServiceArgs {
         let command = command.ok_or_else(|| {
             syn::Error::new(
                 input.span(),
-                "service macro requires 'command' attribute",
+                "services macro requires 'command' attribute",
             )
         })?;
 
@@ -92,7 +92,7 @@ pub(crate) fn service_impl(attr: TokenStream, item: TokenStream) -> TokenStream 
     } else {
         return syn::Error::new_spanned(
             &input,
-            "service macro only supports structs with named fields (e.g., `struct Name {}`)",
+            "services macro only supports structs with named fields (e.g., `struct Name {}`)",
         )
         .to_compile_error()
         .into();

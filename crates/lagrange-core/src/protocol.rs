@@ -88,9 +88,9 @@ impl std::fmt::Debug for EventMessage {
     }
 }
 
-/// Request type for service commands.
+/// Request type for services commands.
 ///
-/// Specifies how the service request should be handled by the protocol layer.
+/// Specifies how the services request should be handled by the protocol layer.
 ///
 /// # Usage in `define_service!`
 ///
@@ -146,9 +146,9 @@ impl Default for RequestType {
     }
 }
 
-/// Encryption type for service commands.
+/// Encryption type for services commands.
 ///
-/// Specifies how the service data should be encrypted.
+/// Specifies how the services data should be encrypted.
 ///
 /// # Usage in `define_service!`
 ///

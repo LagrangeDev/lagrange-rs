@@ -588,6 +588,7 @@ dependencies = [
  "getrandom",
  "inventory",
  "lagrange-macros",
+ "lagrange-proto",
  "md5",
  "num-bigint",
  "rand",

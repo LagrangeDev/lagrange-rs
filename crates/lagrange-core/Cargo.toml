@@ -21,6 +21,7 @@ tracing.workspace = true
 chrono.workspace = true
 rand.workspace = true
 lagrange-macros.workspace = true
+lagrange-proto = { workspace = true, features = ["derive"] }
 
 # Cryptography
 aes-gcm = "0.10"
