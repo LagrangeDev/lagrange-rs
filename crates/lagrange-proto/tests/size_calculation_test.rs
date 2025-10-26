@@ -1,8 +1,7 @@
-
-use lagrange_proto::*;
+use bytes::BytesMut;
 use lagrange_proto::helpers::*;
 use lagrange_proto::wire::WireType;
-use bytes::BytesMut;
+use lagrange_proto::*;
 
 #[test]
 fn test_get_varint_length_u32_all_boundaries() {
@@ -21,8 +20,12 @@ fn test_get_varint_length_u32_all_boundaries() {
     ];
 
     for (value, expected) in test_cases {
-        assert_eq!(get_varint_length_u32(value), expected,
-                  "Incorrect length for u32: {}", value);
+        assert_eq!(
+            get_varint_length_u32(value),
+            expected,
+            "Incorrect length for u32: {}",
+            value
+        );
     }
 }
 
@@ -52,8 +55,12 @@ fn test_get_varint_length_u64_all_boundaries() {
     ];
 
     for (value, expected) in test_cases {
-        assert_eq!(get_varint_length_u64(value), expected,
-                  "Incorrect length for u64: {}", value);
+        assert_eq!(
+            get_varint_length_u64(value),
+            expected,
+            "Incorrect length for u64: {}",
+            value
+        );
     }
 }
 
@@ -73,8 +80,8 @@ fn test_count_string_various_lengths() {
     let test_cases = vec![
         ("a", 2),           // 1 byte length + 1 char
         ("hello", 6),       // 1 byte length + 5 chars
-        (s3.as_str(), 128),   // 1 byte length + 127 chars
-        (s4.as_str(), 130),   // 2 byte length + 128 chars
+        (s3.as_str(), 128), // 1 byte length + 127 chars
+        (s4.as_str(), 130), // 2 byte length + 128 chars
     ];
 
     for (s, expected) in test_cases {
@@ -102,10 +109,10 @@ fn test_count_bytes_empty() {
 #[test]
 fn test_count_bytes_various_lengths() {
     let test_cases = vec![
-        (1, 2),    // 1 byte length + 1 byte data
-        (5, 6),    // 1 byte length + 5 bytes data
-        (127, 128), // 1 byte length + 127 bytes data
-        (128, 130), // 2 byte length + 128 bytes data
+        (1, 2),         // 1 byte length + 1 byte data
+        (5, 6),         // 1 byte length + 5 bytes data
+        (127, 128),     // 1 byte length + 127 bytes data
+        (128, 130),     // 2 byte length + 128 bytes data
         (16383, 16385), // 2 byte length + 16383 bytes
         (16384, 16387), // 3 byte length + 16384 bytes
     ];
@@ -156,8 +163,13 @@ fn test_field_tag_size_small_tags() {
             WireType::LengthDelimited,
             WireType::Fixed32,
         ] {
-            assert_eq!(field_tag_size(tag, wire_type), 1,
-                      "Tag {} with {:?} should be 1 byte", tag, wire_type);
+            assert_eq!(
+                field_tag_size(tag, wire_type),
+                1,
+                "Tag {} with {:?} should be 1 byte",
+                tag,
+                wire_type
+            );
         }
     }
 }
@@ -168,8 +180,12 @@ fn test_field_tag_size_medium_tags() {
     let test_tags = [16, 100, 1000, 2047];
 
     for tag in test_tags {
-        assert_eq!(field_tag_size(tag, WireType::Varint), 2,
-                  "Tag {} should be 2 bytes", tag);
+        assert_eq!(
+            field_tag_size(tag, WireType::Varint),
+            2,
+            "Tag {} should be 2 bytes",
+            tag
+        );
     }
 }
 
@@ -180,7 +196,12 @@ fn test_field_tag_size_large_tags() {
 
     for tag in test_tags {
         let size = field_tag_size(tag, WireType::Varint);
-        assert!(size >= 3, "Tag {} should be at least 3 bytes, got {}", tag, size);
+        assert!(
+            size >= 3,
+            "Tag {} should be at least 3 bytes, got {}",
+            tag,
+            size
+        );
     }
 }
 
@@ -219,11 +240,7 @@ fn test_count_repeated_large_values() {
 
 #[test]
 fn test_count_repeated_strings() {
-    let strings = vec![
-        "hello".to_string(),
-        "world".to_string(),
-        "test".to_string(),
-    ];
+    let strings = vec!["hello".to_string(), "world".to_string(), "test".to_string()];
     let tag_size = field_tag_size(1, WireType::LengthDelimited);
 
     let total = count_repeated_strings(&strings, tag_size);
@@ -248,11 +265,7 @@ fn test_count_repeated_strings_empty() {
 
 #[test]
 fn test_count_repeated_strings_with_empty_strings() {
-    let strings = vec![
-        String::new(),
-        String::new(),
-        String::new(),
-    ];
+    let strings = vec![String::new(), String::new(), String::new()];
     let tag_size = field_tag_size(1, WireType::LengthDelimited);
 
     let total = count_repeated_strings(&strings, tag_size);
@@ -263,11 +276,7 @@ fn test_count_repeated_strings_with_empty_strings() {
 
 #[test]
 fn test_count_repeated_bytes() {
-    let bytes_list = vec![
-        vec![1, 2, 3],
-        vec![4, 5, 6, 7],
-        vec![8],
-    ];
+    let bytes_list = vec![vec![1, 2, 3], vec![4, 5, 6, 7], vec![8]];
     let tag_size = field_tag_size(1, WireType::LengthDelimited);
 
     let total = count_repeated_bytes(&bytes_list, tag_size);
@@ -297,8 +306,12 @@ fn test_encoded_size_matches_actual_u32() {
         let mut buf = BytesMut::new();
         value.encode(&mut buf).unwrap();
 
-        assert_eq!(value.encoded_size(), buf.len(),
-                  "Size mismatch for u32: {}", value);
+        assert_eq!(
+            value.encoded_size(),
+            buf.len(),
+            "Size mismatch for u32: {}",
+            value
+        );
     }
 }
 
@@ -310,8 +323,12 @@ fn test_encoded_size_matches_actual_u64() {
         let mut buf = BytesMut::new();
         value.encode(&mut buf).unwrap();
 
-        assert_eq!(value.encoded_size(), buf.len(),
-                  "Size mismatch for u64: {}", value);
+        assert_eq!(
+            value.encoded_size(),
+            buf.len(),
+            "Size mismatch for u64: {}",
+            value
+        );
     }
 }
 
@@ -323,8 +340,12 @@ fn test_encoded_size_matches_actual_i32() {
         let mut buf = BytesMut::new();
         value.encode(&mut buf).unwrap();
 
-        assert_eq!(value.encoded_size(), buf.len(),
-                  "Size mismatch for i32: {}", value);
+        assert_eq!(
+            value.encoded_size(),
+            buf.len(),
+            "Size mismatch for i32: {}",
+            value
+        );
     }
 }
 
@@ -336,8 +357,12 @@ fn test_encoded_size_matches_actual_i64() {
         let mut buf = BytesMut::new();
         value.encode(&mut buf).unwrap();
 
-        assert_eq!(value.encoded_size(), buf.len(),
-                  "Size mismatch for i64: {}", value);
+        assert_eq!(
+            value.encoded_size(),
+            buf.len(),
+            "Size mismatch for i64: {}",
+            value
+        );
     }
 }
 
@@ -394,8 +419,12 @@ fn test_encoded_size_matches_actual_string() {
         let mut buf = BytesMut::new();
         s.encode(&mut buf).unwrap();
 
-        assert_eq!(s.encoded_size(), buf.len(),
-                  "Size mismatch for string of length {}", s.len());
+        assert_eq!(
+            s.encoded_size(),
+            buf.len(),
+            "Size mismatch for string of length {}",
+            s.len()
+        );
     }
 }
 
@@ -408,8 +437,12 @@ fn test_encoded_size_matches_actual_bytes() {
         let mut buf = BytesMut::new();
         bytes.encode(&mut buf).unwrap();
 
-        assert_eq!(bytes.encoded_size(), buf.len(),
-                  "Size mismatch for bytes of length {}", size);
+        assert_eq!(
+            bytes.encoded_size(),
+            buf.len(),
+            "Size mismatch for bytes of length {}",
+            size
+        );
     }
 }
 
@@ -457,14 +490,14 @@ fn test_size_consistency_across_types() {
 fn test_varint_length_power_of_two_boundaries() {
     // Test at powers of 2 - 1 (boundary values)
     let test_cases = vec![
-        (127u32, 1),     // 2^7 - 1
-        (128, 2),        // 2^7
-        (16383, 2),      // 2^14 - 1
-        (16384, 3),      // 2^14
-        (2097151, 3),    // 2^21 - 1
-        (2097152, 4),    // 2^21
-        (268435455, 4),  // 2^28 - 1
-        (268435456, 5),  // 2^28
+        (127u32, 1),    // 2^7 - 1
+        (128, 2),       // 2^7
+        (16383, 2),     // 2^14 - 1
+        (16384, 3),     // 2^14
+        (2097151, 3),   // 2^21 - 1
+        (2097152, 4),   // 2^21
+        (268435455, 4), // 2^28 - 1
+        (268435456, 5), // 2^28
     ];
 
     for (value, expected) in test_cases {

@@ -1,9 +1,7 @@
-
 use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum EncodeError {
-    
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
 
@@ -19,7 +17,6 @@ pub enum EncodeError {
 
 #[derive(Debug, Error)]
 pub enum DecodeError {
-    
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
 

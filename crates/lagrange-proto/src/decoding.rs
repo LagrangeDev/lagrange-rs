@@ -1,11 +1,9 @@
-
 use crate::error::DecodeError;
 use crate::varint;
 use crate::wire::{decode_key, WireType};
 use bytes::Bytes;
 
 pub trait ProtoDecode: Sized {
-    
     fn decode(buf: &[u8]) -> Result<Self, DecodeError>;
 
     fn merge(&mut self, buf: &[u8]) -> Result<(), DecodeError> {
@@ -53,7 +51,6 @@ pub fn skip_field(wire_type: WireType, buf: &[u8]) -> Result<usize, DecodeError>
             }
         }
         WireType::StartGroup | WireType::EndGroup => {
-            
             Err(DecodeError::Custom("Groups are not supported".to_string()))
         }
     }
@@ -120,7 +117,9 @@ impl ProtoDecode for f64 {
         if buf.len() < 8 {
             return Err(DecodeError::UnexpectedEof);
         }
-        let bytes = [buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7]];
+        let bytes = [
+            buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7],
+        ];
         Ok(f64::from_le_bytes(bytes))
     }
 }
@@ -202,7 +201,9 @@ pub fn decode_fixed64_field(buf: &[u8]) -> Result<(u64, usize), DecodeError> {
     if buf.len() < 8 {
         return Err(DecodeError::UnexpectedEof);
     }
-    let bytes = [buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7]];
+    let bytes = [
+        buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7],
+    ];
     Ok((u64::from_le_bytes(bytes), 8))
 }
 
@@ -212,7 +213,6 @@ pub struct FieldReader<'a> {
 }
 
 impl<'a> FieldReader<'a> {
-    
     #[inline]
     pub fn new(buf: &'a [u8]) -> Self {
         Self { buf, pos: 0 }
@@ -274,7 +274,6 @@ impl<'a> FieldReader<'a> {
                 data
             }
             WireType::LengthDelimited => {
-                
                 let (len, varint_len) = varint::decode::<u32>(self.remaining())?;
                 let total_len = varint_len + len as usize;
                 if self.remaining().len() < total_len {
@@ -285,9 +284,7 @@ impl<'a> FieldReader<'a> {
                 data
             }
             WireType::StartGroup | WireType::EndGroup => {
-                return Err(DecodeError::Custom(
-                    "Groups are not supported".to_string(),
-                ))
+                return Err(DecodeError::Custom("Groups are not supported".to_string()))
             }
         };
         Ok(data)
@@ -339,7 +336,6 @@ mod tests {
 
     #[test]
     fn test_decode_primitives() {
-        
         let mut buf = BytesMut::new();
         42u32.encode(&mut buf).unwrap();
         let value = u32::decode(&buf).unwrap();

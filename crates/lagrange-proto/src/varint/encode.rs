@@ -1,5 +1,4 @@
-
-use crate::varint::num::{VarIntTarget, SignedVarIntTarget};
+use crate::varint::num::{SignedVarIntTarget, VarIntTarget};
 
 pub mod simd;
 

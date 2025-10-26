@@ -1,7 +1,6 @@
-
+use bytes::BytesMut;
 use lagrange_proto::*;
 use lagrange_proto::{Fixed32, Fixed64, SFixed32, SFixed64, SInt32, SInt64};
-use bytes::BytesMut;
 
 // SInt32 Tests
 
@@ -91,10 +90,10 @@ fn test_sint32_encoded_size() {
         (SInt32(0), 1),
         (SInt32(-1), 1),
         (SInt32(1), 1),
-        (SInt32(-64), 1),     // zigzag(-64) = 127, fits in 1 byte
-        (SInt32(63), 1),      // zigzag(63) = 126, fits in 1 byte
-        (SInt32(-65), 2),     // zigzag(-65) = 129, needs 2 bytes
-        (SInt32(64), 2),      // zigzag(64) = 128, needs 2 bytes
+        (SInt32(-64), 1),      // zigzag(-64) = 127, fits in 1 byte
+        (SInt32(63), 1),       // zigzag(63) = 126, fits in 1 byte
+        (SInt32(-65), 2),      // zigzag(-65) = 129, needs 2 bytes
+        (SInt32(64), 2),       // zigzag(64) = 128, needs 2 bytes
         (SInt32(i32::MIN), 5), // zigzag(i32::MIN) = u32::MAX, needs 5 bytes
         (SInt32(i32::MAX), 5), // zigzag(i32::MAX) = u32::MAX - 1, needs 5 bytes
     ];
@@ -103,7 +102,13 @@ fn test_sint32_encoded_size() {
         let mut buf = BytesMut::new();
         sint.encode(&mut buf).unwrap();
         assert_eq!(sint.encoded_size(), buf.len());
-        assert_eq!(buf.len(), expected_size, "SInt32({}) should encode to {} bytes", sint.0, expected_size);
+        assert_eq!(
+            buf.len(),
+            expected_size,
+            "SInt32({}) should encode to {} bytes",
+            sint.0,
+            expected_size
+        );
     }
 }
 
@@ -446,7 +451,10 @@ fn test_fixed_vs_varint_size_comparison() {
     let mut fixed_buf = BytesMut::new();
     Fixed32(small_val).encode(&mut fixed_buf).unwrap();
 
-    assert!(varint_buf.len() < fixed_buf.len(), "Varint should be smaller for small values");
+    assert!(
+        varint_buf.len() < fixed_buf.len(),
+        "Varint should be smaller for small values"
+    );
     assert_eq!(fixed_buf.len(), 4); // Fixed32 always 4 bytes
 }
 
@@ -463,7 +471,7 @@ fn test_fixed_vs_varint_large_values() {
 
     // Both should be close in size for large values
     assert_eq!(varint_buf.len(), 5); // Max varint for u32
-    assert_eq!(fixed_buf.len(), 4);  // Always 4
+    assert_eq!(fixed_buf.len(), 4); // Always 4
 }
 
 #[test]
@@ -561,17 +569,21 @@ fn test_type_debug_display() {
 
     let fixed64 = Fixed64(0xDEADBEEF);
     let debug_str = format!("{:?}", fixed64);
-    assert!(debug_str.contains("DEADBEEF") || debug_str.contains("deadbeef") || debug_str.contains("3735928559"));
+    assert!(
+        debug_str.contains("DEADBEEF")
+            || debug_str.contains("deadbeef")
+            || debug_str.contains("3735928559")
+    );
 }
 
 #[test]
 fn test_type_clone() {
     let sint = SInt32(-42);
-    let cloned = sint.clone();
+    let cloned = sint;
     assert_eq!(sint, cloned);
 
     let fixed = Fixed64(12345);
-    let cloned = fixed.clone();
+    let cloned = fixed;
     assert_eq!(fixed, cloned);
 }
 

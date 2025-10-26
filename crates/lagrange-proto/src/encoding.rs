@@ -1,11 +1,9 @@
-
 use crate::error::EncodeError;
 use crate::varint;
 use crate::wire::{encode_key, WireType};
 use bytes::{BufMut, Bytes, BytesMut};
 
 pub trait ProtoEncode {
-    
     fn encode<B: BufMut>(&self, buf: &mut B) -> Result<(), EncodeError>;
 
     fn encoded_size(&self) -> usize;
@@ -221,7 +219,7 @@ impl<T: ProtoEncode> ProtoEncode for Option<T> {
     fn encode<B: BufMut>(&self, buf: &mut B) -> Result<(), EncodeError> {
         match self {
             Some(value) => value.encode(buf),
-            None => Ok(()), 
+            None => Ok(()),
         }
     }
 
@@ -265,7 +263,11 @@ pub fn encode_length_delimited<B: BufMut>(
 }
 
 #[inline]
-pub fn encode_varint_field<B: BufMut>(tag: u32, value: u64, buf: &mut B) -> Result<(), EncodeError> {
+pub fn encode_varint_field<B: BufMut>(
+    tag: u32,
+    value: u64,
+    buf: &mut B,
+) -> Result<(), EncodeError> {
     let key = encode_key(tag, WireType::Varint);
     let (arr_key, len_key) = varint::encode(key);
     buf.put_slice(&arr_key[..len_key]);
@@ -275,7 +277,11 @@ pub fn encode_varint_field<B: BufMut>(tag: u32, value: u64, buf: &mut B) -> Resu
 }
 
 #[inline]
-pub fn encode_fixed32_field<B: BufMut>(tag: u32, value: u32, buf: &mut B) -> Result<(), EncodeError> {
+pub fn encode_fixed32_field<B: BufMut>(
+    tag: u32,
+    value: u32,
+    buf: &mut B,
+) -> Result<(), EncodeError> {
     let key = encode_key(tag, WireType::Fixed32);
     let (arr, len) = varint::encode(key);
     buf.put_slice(&arr[..len]);
@@ -284,7 +290,11 @@ pub fn encode_fixed32_field<B: BufMut>(tag: u32, value: u32, buf: &mut B) -> Res
 }
 
 #[inline]
-pub fn encode_fixed64_field<B: BufMut>(tag: u32, value: u64, buf: &mut B) -> Result<(), EncodeError> {
+pub fn encode_fixed64_field<B: BufMut>(
+    tag: u32,
+    value: u64,
+    buf: &mut B,
+) -> Result<(), EncodeError> {
     let key = encode_key(tag, WireType::Fixed64);
     let (arr, len) = varint::encode(key);
     buf.put_slice(&arr[..len]);
@@ -306,7 +316,7 @@ mod tests {
 
         buf.clear();
         "hello".encode(&mut buf).unwrap();
-        assert_eq!(buf[0], 5); 
+        assert_eq!(buf[0], 5);
         assert_eq!(&buf[1..], b"hello");
 
         buf.clear();
@@ -329,14 +339,14 @@ mod tests {
         buf.clear();
         let none_value: Option<u32> = None;
         none_value.encode(&mut buf).unwrap();
-        assert_eq!(buf.len(), 0); 
+        assert_eq!(buf.len(), 0);
     }
 
     #[test]
     fn test_encoded_size() {
         assert_eq!(42u32.encoded_size(), 1);
         assert_eq!(128u32.encoded_size(), 2);
-        assert_eq!("hello".encoded_size(), 6); 
+        assert_eq!("hello".encoded_size(), 6);
         assert_eq!(true.encoded_size(), 1);
     }
 }

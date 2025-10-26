@@ -1,6 +1,5 @@
-
-use lagrange_proto::*;
 use bytes::{Bytes, BytesMut};
+use lagrange_proto::*;
 
 #[test]
 fn test_empty_vec_u32() {
@@ -28,16 +27,12 @@ fn test_large_vec() {
     let mut buf = BytesMut::new();
     vec.encode(&mut buf).unwrap();
 
-    assert!(buf.len() > 0);
+    assert!(!buf.is_empty());
 }
 
 #[test]
 fn test_vec_of_strings() {
-    let vec = vec![
-        "hello".to_string(),
-        "world".to_string(),
-        "test".to_string(),
-    ];
+    let vec = vec!["hello".to_string(), "world".to_string(), "test".to_string()];
 
     let size = vec.encoded_size();
     assert!(size > 0);
@@ -419,11 +414,7 @@ fn test_vec_of_options() {
 
 #[test]
 fn test_vec_of_vec() {
-    let vec = vec![
-        vec![1u32, 2, 3],
-        vec![4, 5],
-        vec![6, 7, 8, 9],
-    ];
+    let vec = vec![vec![1u32, 2, 3], vec![4, 5], vec![6, 7, 8, 9]];
 
     let size = vec.encoded_size();
     assert!(size > 0);

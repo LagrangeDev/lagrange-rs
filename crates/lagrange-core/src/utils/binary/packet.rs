@@ -4,10 +4,7 @@ use std::fmt;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PacketError {
-    InsufficientData {
-        requested: usize,
-        available: usize,
-    },
+    InsufficientData { requested: usize, available: usize },
     InvalidUtf8(std::str::Utf8Error),
     InvalidPrefix,
 }
@@ -92,10 +89,7 @@ impl BinaryPacket {
 
     #[inline]
     pub fn from_vec(buffer: Vec<u8>) -> Self {
-        Self {
-            buffer,
-            offset: 0,
-        }
+        Self { buffer, offset: 0 }
     }
 
     #[inline]
@@ -200,9 +194,15 @@ impl BinaryPacket {
         let prefix_len = prefix.prefix_length();
 
         match prefix_len {
-            1 => { self.write(len as u8); }
-            2 => { self.write(len as u16); }
-            4 => { self.write(len as u32); }
+            1 => {
+                self.write(len as u8);
+            }
+            2 => {
+                self.write(len as u16);
+            }
+            4 => {
+                self.write(len as u32);
+            }
             0 => {}
             _ => panic!("Invalid prefix length: {}", prefix_len),
         }
@@ -389,7 +389,6 @@ impl BinaryPacket {
         Ok(result)
     }
 
-
     #[inline]
     pub fn to_vec(mut self) -> Vec<u8> {
         self.buffer.truncate(self.offset);
@@ -488,10 +487,12 @@ mod tests {
         let mut packet = BinaryPacket::with_capacity(64);
 
         // Test method chaining with length prefix
-        packet.with_length_prefix::<u32, _, _>(false, 0, |w| {
-            w.write(0x1234u16);
-            w.write(0x5678u16);
-        }).unwrap();
+        packet
+            .with_length_prefix::<u32, _, _>(false, 0, |w| {
+                w.write(0x1234u16);
+                w.write(0x5678u16);
+            })
+            .unwrap();
 
         let mut read_packet = BinaryPacket::from(packet.to_vec());
 
@@ -550,7 +551,7 @@ mod tests {
             .write(0xDDEEFFu32);
 
         let vec = packet.to_vec();
-        assert!(vec.len() > 0);
+        assert!(!vec.is_empty());
     }
 
     #[test]
@@ -574,9 +575,6 @@ mod tests {
         let mut packet = BinaryPacket::from(data);
 
         let result: Result<u32> = packet.read();
-        assert!(matches!(
-            result,
-            Err(PacketError::InsufficientData { .. })
-        ));
+        assert!(matches!(result, Err(PacketError::InsufficientData { .. })));
     }
 }

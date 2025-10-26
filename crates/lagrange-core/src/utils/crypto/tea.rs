@@ -64,7 +64,7 @@ impl TeaProvider {
     /// Decrypts data using TEA cipher with the given 16-byte key
     /// Returns decrypted data with padding removed
     pub fn decrypt(source: &[u8], key: &[u8; 16]) -> Result<Vec<u8>, &'static str> {
-        if source.len() < 16 || source.len() % 8 != 0 {
+        if source.len() < 16 || !source.len().is_multiple_of(8) {
             return Err("Invalid ciphertext length");
         }
 
@@ -123,10 +123,14 @@ impl TeaProvider {
         for _ in 0..TEA_ROUNDS {
             sum = sum.wrapping_add(TEA_DELTA);
             v0 = v0.wrapping_add(
-                ((v1 << 4).wrapping_add(k0)) ^ (v1.wrapping_add(sum)) ^ ((v1 >> 5).wrapping_add(k1))
+                ((v1 << 4).wrapping_add(k0))
+                    ^ (v1.wrapping_add(sum))
+                    ^ ((v1 >> 5).wrapping_add(k1)),
             );
             v1 = v1.wrapping_add(
-                ((v0 << 4).wrapping_add(k2)) ^ (v0.wrapping_add(sum)) ^ ((v0 >> 5).wrapping_add(k3))
+                ((v0 << 4).wrapping_add(k2))
+                    ^ (v0.wrapping_add(sum))
+                    ^ ((v0 >> 5).wrapping_add(k3)),
             );
         }
 
@@ -151,10 +155,14 @@ impl TeaProvider {
 
         for _ in 0..TEA_ROUNDS {
             v1 = v1.wrapping_sub(
-                ((v0 << 4).wrapping_add(k2)) ^ (v0.wrapping_add(sum)) ^ ((v0 >> 5).wrapping_add(k3))
+                ((v0 << 4).wrapping_add(k2))
+                    ^ (v0.wrapping_add(sum))
+                    ^ ((v0 >> 5).wrapping_add(k3)),
             );
             v0 = v0.wrapping_sub(
-                ((v1 << 4).wrapping_add(k0)) ^ (v1.wrapping_add(sum)) ^ ((v1 >> 5).wrapping_add(k1))
+                ((v1 << 4).wrapping_add(k0))
+                    ^ (v1.wrapping_add(sum))
+                    ^ ((v1 >> 5).wrapping_add(k1)),
             );
             sum = sum.wrapping_sub(TEA_DELTA);
         }
@@ -173,8 +181,8 @@ mod tests {
     #[test]
     fn test_tea_encrypt_decrypt() {
         let key = [
-            0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
-            0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10,
+            0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E,
+            0x0F, 0x10,
         ];
         let plaintext = b"Hello, World!";
 
@@ -197,8 +205,10 @@ mod tests {
 
     #[test]
     fn test_tea_various_lengths() {
-        let key = [0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88,
-                   0x99, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x00];
+        let key = [
+            0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xAA, 0xBB, 0xCC, 0xDD, 0xEE,
+            0xFF, 0x00,
+        ];
 
         for len in 0..100 {
             let plaintext = vec![0x42u8; len];
@@ -210,8 +220,10 @@ mod tests {
 
     #[test]
     fn test_tea_block_encrypt_decrypt() {
-        let key = [0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
-                   0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10];
+        let key = [
+            0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E,
+            0x0F, 0x10,
+        ];
         let block = [0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88];
 
         let encrypted = TeaProvider::encrypt_block(&block, &key);

@@ -1,4 +1,3 @@
-
 use crate::error::DecodeError;
 use crate::varint::num::VarIntTarget;
 
@@ -12,7 +11,6 @@ pub fn decode_simd<T: VarIntTarget>(bytes: &[u8]) -> Result<(T, usize), DecodeEr
     let result = if bytes.len() >= 16 {
         unsafe { decode_unsafe::<T>(bytes.as_ptr()) }
     } else {
-        
         let mut data = [0u8; 16];
         let len = bytes.len().min(16);
         data[..len].copy_from_slice(&bytes[..len]);
@@ -24,7 +22,6 @@ pub fn decode_simd<T: VarIntTarget>(bytes: &[u8]) -> Result<(T, usize), DecodeEr
     }
 
     if result.1 == T::MAX_VARINT_BYTES {
-        
         let last_byte = bytes[T::MAX_VARINT_BYTES - 1];
         if last_byte > T::MAX_LAST_VARINT_BYTE {
             return Err(DecodeError::InvalidVarint);
@@ -36,6 +33,16 @@ pub fn decode_simd<T: VarIntTarget>(bytes: &[u8]) -> Result<(T, usize), DecodeEr
     Ok(result)
 }
 
+/// Decodes a varint using SIMD instructions.
+///
+/// # Safety
+///
+/// This function is unsafe because it:
+/// - Dereferences raw pointers without bounds checking
+/// - Uses SIMD intrinsics and requires SSE2 support
+/// - Assumes at least 16 bytes are accessible from the pointer (caller must ensure this)
+///
+/// The caller must ensure the pointer is valid and points to at least 16 readable bytes.
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "sse2")]
 #[inline]
@@ -59,7 +66,7 @@ pub unsafe fn decode_unsafe<T: VarIntTarget>(bytes: *const u8) -> (T, usize) {
         let len1 = msbs1.trailing_zeros() + 1;
 
         let varint_part0 = b0 & (msbs0 ^ msbs0.wrapping_sub(1));
-        
+
         let varint_part1 = (b1 & (msbs1 ^ msbs1.wrapping_sub(1))) * ((msbs0 == 0) as u64);
 
         let num = T::vector_to_num(core::mem::transmute::<[u64; 2], [u8; 16]>([
@@ -98,6 +105,16 @@ pub fn decode_len_simd<T: VarIntTarget>(bytes: &[u8]) -> Result<usize, DecodeErr
     }
 }
 
+/// Decodes the length of a varint using SIMD instructions.
+///
+/// # Safety
+///
+/// This function is unsafe because it:
+/// - Dereferences raw pointers without bounds checking
+/// - Uses SIMD intrinsics and requires SSE2 support
+/// - Assumes at least 16 bytes are accessible from the pointer (caller must ensure this)
+///
+/// The caller must ensure the pointer is valid and points to at least 16 readable bytes.
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "sse2")]
 #[inline]
@@ -105,7 +122,7 @@ pub unsafe fn decode_len_unsafe<T: VarIntTarget>(bytes: *const u8) -> usize {
     if T::MAX_VARINT_BYTES <= 5 {
         let b = bytes.cast::<u64>().read_unaligned();
         let msbs = !b & 0x8080808080808080u64;
-        let len = msbs.trailing_zeros() + 1; 
+        let len = msbs.trailing_zeros() + 1;
         (len / 8) as usize
     } else {
         let b0 = bytes.cast::<u64>().read_unaligned();
@@ -151,7 +168,6 @@ mod tests {
         ];
 
         for (bytes, expected_val, expected_len) in test_cases {
-            
             let mut padded = vec![0u8; 16];
             padded[..bytes.len()].copy_from_slice(&bytes);
 
@@ -168,11 +184,14 @@ mod tests {
             (vec![1], 1u64, 1),
             (vec![127], 127u64, 1),
             (vec![0x80, 0x01], 128u64, 2),
-            (vec![0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01], u64::MAX, 10),
+            (
+                vec![0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01],
+                u64::MAX,
+                10,
+            ),
         ];
 
         for (bytes, expected_val, expected_len) in test_cases {
-            
             let mut padded = vec![0u8; 16];
             padded[..bytes.len()].copy_from_slice(&bytes);
 
@@ -191,7 +210,6 @@ mod tests {
         ];
 
         for (bytes, expected_len) in test_cases {
-            
             let mut padded = vec![0u8; 16];
             padded[..bytes.len()].copy_from_slice(&bytes);
 
@@ -202,8 +220,7 @@ mod tests {
 
     #[test]
     fn test_decode_simd_overflow() {
-        
-        let bytes = vec![0xFF, 0xFF, 0xFF, 0xFF, 0x10]; 
+        let bytes = vec![0xFF, 0xFF, 0xFF, 0xFF, 0x10];
         let mut padded = vec![0u8; 16];
         padded[..bytes.len()].copy_from_slice(&bytes);
 

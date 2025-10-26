@@ -1,7 +1,6 @@
-
-use lagrange_proto::*;
 use lagrange_proto::error::{DecodeError, EncodeError, ProtoError};
 use lagrange_proto::wire::WireType;
+use lagrange_proto::*;
 
 #[test]
 fn test_decode_empty_buffer() {
@@ -11,7 +10,7 @@ fn test_decode_empty_buffer() {
     let result = u32::decode(empty);
     assert!(result.is_err());
     match result {
-        Err(DecodeError::UnexpectedEof) => {},
+        Err(DecodeError::UnexpectedEof) => {}
         _ => panic!("Expected UnexpectedEof error"),
     }
 }
@@ -89,7 +88,7 @@ fn test_decode_invalid_bool_value_255() {
     let result = bool::decode(invalid_bool);
     assert!(result.is_err());
     match result {
-        Err(DecodeError::InvalidBool(_)) => {},
+        Err(DecodeError::InvalidBool(_)) => {}
         _ => panic!("Expected InvalidBool error"),
     }
 }
@@ -108,8 +107,8 @@ fn test_decode_invalid_bool_large_varint() {
 fn test_decode_invalid_utf8() {
     // Invalid UTF-8 sequence
     let invalid_utf8 = &[
-        5,           // Length: 5 bytes
-        0xFF, 0xFE, 0xFD, 0xFC, 0xFB,  // Invalid UTF-8
+        5, // Length: 5 bytes
+        0xFF, 0xFE, 0xFD, 0xFC, 0xFB, // Invalid UTF-8
     ];
 
     let result = String::decode(invalid_utf8);
@@ -121,9 +120,9 @@ fn test_decode_invalid_utf8() {
 fn test_decode_invalid_utf8_incomplete_sequence() {
     // Incomplete multi-byte UTF-8 sequence
     let invalid = &[
-        2,          // Length: 2 bytes
-        0xC3,       // Start of 2-byte sequence
-        0xFF,       // Invalid continuation byte
+        2,    // Length: 2 bytes
+        0xC3, // Start of 2-byte sequence
+        0xFF, // Invalid continuation byte
     ];
 
     let result = String::decode(invalid);
@@ -229,7 +228,7 @@ fn test_skip_field_start_group_unsupported() {
     match result {
         Err(DecodeError::Custom(msg)) => {
             assert!(msg.contains("Groups are not supported") || msg.contains("not supported"));
-        },
+        }
         _ => panic!("Expected Custom error for unsupported groups"),
     }
 }
@@ -360,13 +359,18 @@ fn test_varint_decode_missing_terminator() {
     let result = u32::decode(no_terminator);
     assert!(result.is_err());
     // Could be either InvalidVarint or UnexpectedEof depending on implementation
-    assert!(matches!(result, Err(DecodeError::InvalidVarint) | Err(DecodeError::UnexpectedEof)));
+    assert!(matches!(
+        result,
+        Err(DecodeError::InvalidVarint) | Err(DecodeError::UnexpectedEof)
+    ));
 }
 
 #[test]
 fn test_varint_decode_u64_overflow() {
     // 11 bytes when u64 max is 10
-    let overlong = &[0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01];
+    let overlong = &[
+        0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0x01,
+    ];
 
     let result = u64::decode(overlong);
     assert!(result.is_err());
@@ -539,7 +543,10 @@ fn test_varint_decode_len_no_terminator() {
     let result = decode_len::<u32>(no_terminator);
     assert!(result.is_err());
     // Should be either InvalidVarint or UnexpectedEof
-    assert!(matches!(result, Err(DecodeError::InvalidVarint) | Err(DecodeError::UnexpectedEof)));
+    assert!(matches!(
+        result,
+        Err(DecodeError::InvalidVarint) | Err(DecodeError::UnexpectedEof)
+    ));
 }
 
 #[test]

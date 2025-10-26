@@ -70,7 +70,7 @@ impl WLoginSigs {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct SessionState {
     #[serde(skip)]
     pub exchange_key: Option<Vec<u8>>,
@@ -79,17 +79,6 @@ pub struct SessionState {
     pub qr_sig: Option<Vec<u8>>,
     #[serde(default)]
     pub tlv_cache: std::collections::HashMap<u16, Vec<u8>>,
-}
-
-impl Default for SessionState {
-    fn default() -> Self {
-        Self {
-            exchange_key: None,
-            cookies: Default::default(),
-            qr_sig: None,
-            tlv_cache: Default::default(),
-        }
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

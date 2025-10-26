@@ -54,7 +54,12 @@ impl AndroidSignProvider {
 #[async_trait]
 impl SignProvider for AndroidSignProvider {
     async fn sign(&self, cmd: &str, seq: u32, data: &[u8]) -> Option<SignResult> {
-        tracing::debug!("Android sign request: cmd={}, seq={}, len={}", cmd, seq, data.len());
+        tracing::debug!(
+            "Android sign request: cmd={}, seq={}, len={}",
+            cmd,
+            seq,
+            data.len()
+        );
         None
     }
 

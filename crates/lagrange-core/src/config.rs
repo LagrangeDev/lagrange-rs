@@ -94,7 +94,7 @@ impl BotConfig {
     pub fn get_sign_provider(&self) -> BoxedSignProvider {
         self.sign_provider
             .clone()
-            .unwrap_or_else(|| Arc::new(DefaultSignProvider::default()))
+            .unwrap_or_else(|| Arc::new(DefaultSignProvider))
     }
 }
 

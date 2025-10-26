@@ -1,14 +1,10 @@
-
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{
-    Data, DeriveInput, Error, Fields, Meta, Result, Variant,
-};
+use syn::{Data, DeriveInput, Error, Fields, Meta, Result, Variant};
 
 fn extract_enum_value(variant: &Variant) -> Result<i32> {
     for attr in &variant.attrs {
         if attr.path().is_ident("proto") {
-            
             if let Ok(Meta::NameValue(nv)) = attr.parse_args::<Meta>() {
                 if nv.path.is_ident("value") {
                     if let syn::Expr::Lit(expr_lit) = &nv.value {
@@ -42,7 +38,6 @@ pub fn expand_derive_proto_enum(input: DeriveInput) -> Result<TokenStream> {
 
     let mut variant_infos = Vec::new();
     for variant in variants {
-        
         match &variant.fields {
             Fields::Unit => {}
             _ => {
@@ -76,12 +71,15 @@ pub fn expand_derive_proto_enum(input: DeriveInput) -> Result<TokenStream> {
         }
     });
 
-    let decode_arms: Vec<_> = variant_infos.iter().map(|(name, value)| {
-        let value_i32 = *value;
-        quote! {
-            #value_i32 => Ok(#enum_name::#name)
-        }
-    }).collect();
+    let decode_arms: Vec<_> = variant_infos
+        .iter()
+        .map(|(name, value)| {
+            let value_i32 = *value;
+            quote! {
+                #value_i32 => Ok(#enum_name::#name)
+            }
+        })
+        .collect();
 
     let to_i32_arms = variant_infos.iter().map(|(name, value)| {
         let value_i32 = *value;
@@ -119,7 +117,7 @@ pub fn expand_derive_proto_enum(input: DeriveInput) -> Result<TokenStream> {
         }
 
         impl #enum_name {
-            
+
             #[allow(dead_code)]
             pub fn to_i32(&self) -> i32 {
                 match self {

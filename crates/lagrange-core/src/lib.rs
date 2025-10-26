@@ -1,15 +1,15 @@
-pub mod protocol;
-pub mod context;
-pub mod internal;
-pub mod config;
-pub mod keystore;
-pub mod error;
 pub mod common;
+pub mod config;
+pub mod context;
+pub mod error;
+pub mod internal;
+pub mod keystore;
+pub mod protocol;
 pub mod utils;
 
 pub use context::BotContext;
-pub use protocol::{EventMessage, ProtocolEvent, Protocols};
 pub use error::{Error, Result};
+pub use protocol::{EventMessage, ProtocolEvent, Protocols};
 
 /// Prelude module for services definitions.
 ///
@@ -71,7 +71,13 @@ mod tests {
         assert_eq!(windows.app_id(), 1600001604);
 
         let android = BotAppInfo::from_protocol(Protocols::AndroidPhone);
-        assert!(matches!(android, BotAppInfo::Android { variant: AndroidVariant::Phone, .. }));
+        assert!(matches!(
+            android,
+            BotAppInfo::Android {
+                variant: AndroidVariant::Phone,
+                ..
+            }
+        ));
         assert_eq!(android.app_id(), 16);
         assert_eq!(android.android_variant(), Some(AndroidVariant::Phone));
 
@@ -166,9 +172,9 @@ mod tests {
             .build();
 
         assert_eq!(config.protocol, Protocols::Windows);
-        assert_eq!(config.use_ipv6_network, true);
-        assert_eq!(config.auto_reconnect, false);
-        assert_eq!(config.verbose, true);
+        assert!(config.use_ipv6_network);
+        assert!(!config.auto_reconnect);
+        assert!(config.verbose);
         assert_eq!(config.highway_chunk_size, 512 * 1024);
         assert_eq!(config.highway_concurrent, 2);
     }
@@ -177,11 +183,11 @@ mod tests {
     fn test_bot_config_defaults() {
         let config = BotConfig::default();
         assert_eq!(config.protocol, Protocols::Linux);
-        assert_eq!(config.auto_reconnect, true);
-        assert_eq!(config.auto_re_login, true);
-        assert_eq!(config.get_optimum_server, true);
+        assert!(config.auto_reconnect);
+        assert!(config.auto_re_login);
+        assert!(config.get_optimum_server);
         assert_eq!(config.highway_chunk_size, 1024 * 1024);
-        assert_eq!(config.verbose, false);
+        assert!(!config.verbose);
     }
 
     #[test]
@@ -222,7 +228,7 @@ mod tests {
     fn test_sign_provider() {
         use crate::common::sign::{DefaultSignProvider, SignProvider};
 
-        let provider = DefaultSignProvider::default();
+        let provider = DefaultSignProvider;
         assert_eq!(provider.platform(), "default");
     }
 
@@ -286,7 +292,10 @@ mod tests {
 
         assert_eq!(
             phone.apk_signature_md5,
-            vec![0xA6, 0xB7, 0x45, 0xBF, 0x24, 0xA2, 0xC2, 0x77, 0x52, 0x77, 0x16, 0xF6, 0xF3, 0x6E, 0xB6, 0x8D]
+            vec![
+                0xA6, 0xB7, 0x45, 0xBF, 0x24, 0xA2, 0xC2, 0x77, 0x52, 0x77, 0x16, 0xF6, 0xF3, 0x6E,
+                0xB6, 0x8D
+            ]
         );
 
         assert_eq!(phone.sdk_info.sdk_version, "6.0.0.2568");

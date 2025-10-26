@@ -1,8 +1,5 @@
 #[allow(unused_imports)]
-use crate::{
-    context::BotContext,
-    error::Result,
-};
+use crate::{context::BotContext, error::Result};
 #[allow(unused_imports)]
 use bytes::Bytes;
 use lagrange_macros::define_service;

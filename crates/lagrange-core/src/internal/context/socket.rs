@@ -1,8 +1,8 @@
-use bytes::{Bytes, BytesMut, BufMut};
+use bytes::{BufMut, Bytes, BytesMut};
 use std::sync::Arc;
-use tokio::sync::mpsc;
-use tokio::net::TcpStream;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::TcpStream;
+use tokio::sync::mpsc;
 
 const IPV4_SERVER: &str = "msfwifi.3g.qq.com:8080";
 const IPV6_SERVER: &str = "msfwifiv6.3g.qq.com:8080";
@@ -61,7 +61,9 @@ impl SocketContext {
             .lock()
             .expect("Mutex poisoned")
             .take()
-            .ok_or_else(|| crate::error::Error::NetworkError("Outbound receiver already taken".to_string()))?;
+            .ok_or_else(|| {
+                crate::error::Error::NetworkError("Outbound receiver already taken".to_string())
+            })?;
         self.set_connected(true);
 
         let read_task = {

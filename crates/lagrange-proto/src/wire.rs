@@ -1,25 +1,22 @@
-
 use crate::error::DecodeError;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum WireType {
-    
     Varint = 0,
-    
+
     Fixed64 = 1,
-    
+
     LengthDelimited = 2,
-    
+
     StartGroup = 3,
-    
+
     EndGroup = 4,
-    
+
     Fixed32 = 5,
 }
 
 impl WireType {
-    
     #[inline]
     pub fn from_u8(value: u8) -> Result<Self, DecodeError> {
         match value {
@@ -41,14 +38,12 @@ impl WireType {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Key {
-    
     pub tag: u32,
-    
+
     pub wire_type: WireType,
 }
 
 impl Key {
-    
     #[inline]
     pub const fn new(tag: u32, wire_type: WireType) -> Self {
         Self { tag, wire_type }
@@ -99,10 +94,10 @@ mod tests {
     #[test]
     fn test_key_encoding() {
         let key = Key::new(1, WireType::Varint);
-        assert_eq!(key.encode(), 8); 
+        assert_eq!(key.encode(), 8);
 
         let key = Key::new(2, WireType::LengthDelimited);
-        assert_eq!(key.encode(), 18); 
+        assert_eq!(key.encode(), 18);
     }
 
     #[test]

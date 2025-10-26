@@ -1,6 +1,5 @@
-
-use lagrange_proto::*;
 use lagrange_proto::error::DecodeError;
+use lagrange_proto::*;
 
 #[test]
 fn test_truncated_at_every_position() {
@@ -17,7 +16,7 @@ fn test_truncated_at_every_position() {
         // Should fail with UnexpectedEof
         if result.is_err() {
             match result.err().unwrap() {
-                DecodeError::UnexpectedEof | DecodeError::InvalidVarint => {},
+                DecodeError::UnexpectedEof | DecodeError::InvalidVarint => {}
                 other => panic!("Unexpected error at position {}: {:?}", i, other),
             }
         }
@@ -82,18 +81,22 @@ fn test_bool_invalid_values() {
     // For values > 127, they have the continuation bit set and require more bytes
     // So we test with complete multi-byte varints that decode to invalid bool values
     let invalid_cases = vec![
-        (vec![2u8], 2u64),           // Valid varint, invalid bool
+        (vec![2u8], 2u64), // Valid varint, invalid bool
         (vec![3], 3),
         (vec![4], 4),
         (vec![5], 5),
         (vec![10], 10),
         (vec![127], 127),
-        (vec![0x80, 0x02], 256),     // Multi-byte varint
+        (vec![0x80, 0x02], 256), // Multi-byte varint
     ];
 
     for (buf, expected_val) in invalid_cases {
         let result = bool::decode(&buf);
-        assert!(result.is_err(), "Value {} should be invalid for bool", expected_val);
+        assert!(
+            result.is_err(),
+            "Value {} should be invalid for bool",
+            expected_val
+        );
         match result.unwrap_err() {
             DecodeError::InvalidBool(v) => assert_eq!(v, expected_val),
             other => panic!("Expected InvalidBool error, got {:?}", other),
@@ -104,12 +107,12 @@ fn test_bool_invalid_values() {
 #[test]
 fn test_invalid_utf8_sequences() {
     let invalid_sequences = vec![
-        vec![1, 0xFF],                    // Invalid byte
-        vec![2, 0xC3, 0x28],              // Invalid continuation
-        vec![3, 0xE2, 0x28, 0xA1],        // Invalid UTF-8
-        vec![4, 0xF0, 0x90, 0x28, 0xBC],  // Invalid UTF-8
-        vec![2, 0xC0, 0x80],              // Overlong encoding
-        vec![3, 0xE0, 0x80, 0x80],        // Overlong encoding
+        vec![1, 0xFF],                   // Invalid byte
+        vec![2, 0xC3, 0x28],             // Invalid continuation
+        vec![3, 0xE2, 0x28, 0xA1],       // Invalid UTF-8
+        vec![4, 0xF0, 0x90, 0x28, 0xBC], // Invalid UTF-8
+        vec![2, 0xC0, 0x80],             // Overlong encoding
+        vec![3, 0xE0, 0x80, 0x80],       // Overlong encoding
     ];
 
     for seq in invalid_sequences {
@@ -122,8 +125,8 @@ fn test_invalid_utf8_sequences() {
 #[test]
 fn test_incomplete_utf8_multibyte() {
     let incomplete_sequences = vec![
-        vec![1, 0xC3],           // 2-byte char, missing continuation
-        vec![2, 0xE2, 0x82],     // 3-byte char, missing continuation
+        vec![1, 0xC3],             // 2-byte char, missing continuation
+        vec![2, 0xE2, 0x82],       // 3-byte char, missing continuation
         vec![3, 0xF0, 0x90, 0x8D], // 4-byte char, missing continuation
     ];
 
@@ -135,12 +138,7 @@ fn test_incomplete_utf8_multibyte() {
 
 #[test]
 fn test_fixed32_truncated() {
-    let truncated_bufs = vec![
-        vec![],
-        vec![0x00],
-        vec![0x00, 0x00],
-        vec![0x00, 0x00, 0x00],
-    ];
+    let truncated_bufs = vec![vec![], vec![0x00], vec![0x00, 0x00], vec![0x00, 0x00, 0x00]];
 
     for buf in truncated_bufs {
         let result = f32::decode(&buf);
@@ -216,7 +214,7 @@ fn test_field_key_invalid_tag_zero() {
     let result = Key::decode(0);
     assert!(result.is_err());
     match result.unwrap_err() {
-        DecodeError::InvalidTag(0) => {},
+        DecodeError::InvalidTag(0) => {}
         _ => panic!("Expected InvalidTag(0)"),
     }
 }
@@ -230,7 +228,7 @@ fn test_field_key_invalid_wire_type() {
     let result = Key::decode(invalid_key);
     assert!(result.is_err());
     match result.unwrap_err() {
-        DecodeError::InvalidWireType(6) => {},
+        DecodeError::InvalidWireType(6) => {}
         _ => panic!("Expected InvalidWireType(6)"),
     }
 }
@@ -335,7 +333,7 @@ fn test_varint_boundary_corruption() {
     127u32.encode(&mut buf).unwrap();
 
     // Corrupt to make it look like 2-byte varint
-    buf[0] = 0x80 | buf[0];
+    buf[0] |= 0x80;
 
     let result = u32::decode(&buf);
     assert!(result.is_err());

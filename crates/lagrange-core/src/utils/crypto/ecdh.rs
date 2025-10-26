@@ -19,32 +19,20 @@ pub struct EllipticCurve {
 impl EllipticCurve {
     /// Creates the Secp192K1 curve (192-bit Koblitz curve)
     pub fn secp192k1() -> Self {
-        let p = BigInt::parse_bytes(
-            b"FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFEE37",
-            16,
-        )
-        .unwrap();
+        let p =
+            BigInt::parse_bytes(b"FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFEE37", 16).unwrap();
 
         let a = BigInt::from(0);
         let b = BigInt::from(3);
 
-        let gx = BigInt::parse_bytes(
-            b"DB4FF10EC057E9AE26B07D0280B7F4341DA5D1B1EAE06C7D",
-            16,
-        )
-        .unwrap();
+        let gx =
+            BigInt::parse_bytes(b"DB4FF10EC057E9AE26B07D0280B7F4341DA5D1B1EAE06C7D", 16).unwrap();
 
-        let gy = BigInt::parse_bytes(
-            b"9B2F2F6D9C5628A7844163D015BE86344082AA88D95E2F9D",
-            16,
-        )
-        .unwrap();
+        let gy =
+            BigInt::parse_bytes(b"9B2F2F6D9C5628A7844163D015BE86344082AA88D95E2F9D", 16).unwrap();
 
-        let n = BigInt::parse_bytes(
-            b"FFFFFFFFFFFFFFFFFFFFFFFE26F2FC170F69466A74DEFD8D",
-            16,
-        )
-        .unwrap();
+        let n =
+            BigInt::parse_bytes(b"FFFFFFFFFFFFFFFFFFFFFFFE26F2FC170F69466A74DEFD8D", 16).unwrap();
 
         Self {
             p,
@@ -192,7 +180,8 @@ impl EllipticCurve {
 
         // Verify: y² = x³ + ax + b (mod p)
         let left = self.mod_positive(&(&point.y * &point.y));
-        let right = self.mod_positive(&(&point.x * &point.x * &point.x + &self.a * &point.x + &self.b));
+        let right =
+            self.mod_positive(&(&point.x * &point.x * &point.x + &self.a * &point.x + &self.b));
         left == right
     }
 }
@@ -241,7 +230,7 @@ impl EllipticPoint {
         // Add x coordinate (padded to coord_size)
         let x_bytes = self.x.to_bytes_be().1;
         let padding = coord_size.saturating_sub(x_bytes.len());
-        result.extend(std::iter::repeat(0).take(padding));
+        result.extend(std::iter::repeat_n(0, padding));
         result.extend_from_slice(&x_bytes);
 
         result
@@ -257,13 +246,13 @@ impl EllipticPoint {
         // Add x coordinate (padded to coord_size)
         let x_bytes = self.x.to_bytes_be().1;
         let x_padding = coord_size.saturating_sub(x_bytes.len());
-        result.extend(std::iter::repeat(0).take(x_padding));
+        result.extend(std::iter::repeat_n(0, x_padding));
         result.extend_from_slice(&x_bytes);
 
         // Add y coordinate (padded to coord_size)
         let y_bytes = self.y.to_bytes_be().1;
         let y_padding = coord_size.saturating_sub(y_bytes.len());
-        result.extend(std::iter::repeat(0).take(y_padding));
+        result.extend(std::iter::repeat_n(0, y_padding));
         result.extend_from_slice(&y_bytes);
 
         result

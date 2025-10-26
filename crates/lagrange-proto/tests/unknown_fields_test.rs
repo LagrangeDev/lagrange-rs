@@ -1,6 +1,5 @@
-
-use lagrange_proto::{ProtoMessage, ProtoDecode, ProtoEncode, UnknownFields};
 use bytes::BytesMut;
+use lagrange_proto::{ProtoDecode, ProtoEncode, ProtoMessage, UnknownFields};
 
 #[derive(ProtoMessage, Debug, Clone, PartialEq)]
 #[proto(preserve_unknown)]
@@ -31,7 +30,6 @@ struct MessageV2 {
 
 #[test]
 fn test_preserve_unknown_fields() {
-    
     let msg_v2 = MessageV2 {
         id: 42,
         name: "Alice".to_string(),
@@ -49,7 +47,7 @@ fn test_preserve_unknown_fields() {
     assert_eq!(msg_v1.name, "Alice");
 
     assert!(!msg_v1._unknown_fields.is_empty());
-    assert_eq!(msg_v1._unknown_fields.len(), 2); 
+    assert_eq!(msg_v1._unknown_fields.len(), 2);
 
     let mut buf = BytesMut::new();
     msg_v1.encode(&mut buf).unwrap();
@@ -89,7 +87,6 @@ fn test_unknown_fields_api() {
 
 #[test]
 fn test_round_trip_fidelity() {
-    
     let original = MessageV2 {
         id: 123,
         name: "Bob".to_string(),
@@ -155,7 +152,7 @@ fn test_preserve_with_optional_fields() {
     let msg_v1 = MessageV1Optional::decode(&encoded).unwrap();
     assert_eq!(msg_v1.id, 999);
     assert_eq!(msg_v1.name, Some("Test".to_string()));
-    assert_eq!(msg_v1._unknown_fields.len(), 2); 
+    assert_eq!(msg_v1._unknown_fields.len(), 2);
 
     let mut buf = BytesMut::new();
     msg_v1.encode(&mut buf).unwrap();
@@ -203,7 +200,10 @@ fn test_preserve_with_repeated_fields() {
 
     let msg_v1 = MessageV1WithRepeated::decode(&encoded).unwrap();
     assert_eq!(msg_v1.id, 1);
-    assert_eq!(msg_v1.tags, vec!["rust".to_string(), "protobuf".to_string()]);
+    assert_eq!(
+        msg_v1.tags,
+        vec!["rust".to_string(), "protobuf".to_string()]
+    );
 
     assert!(!msg_v1._unknown_fields.is_empty());
 
@@ -217,7 +217,6 @@ fn test_preserve_with_repeated_fields() {
 
 #[test]
 fn test_encoded_size_includes_unknown_fields() {
-    
     let msg_v2 = MessageV2 {
         id: 42,
         name: "Test".to_string(),

@@ -25,10 +25,7 @@ impl Parse for EventSubscribeArgs {
 
             let key: Ident = input.parse()?;
             if key != "protocol" {
-                return Err(syn::Error::new(
-                    key.span(),
-                    "Expected 'protocol' attribute",
-                ));
+                return Err(syn::Error::new(key.span(), "Expected 'protocol' attribute"));
             }
 
             input.parse::<Token![=]>()?;

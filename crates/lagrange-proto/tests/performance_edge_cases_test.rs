@@ -1,6 +1,5 @@
-
-use lagrange_proto::*;
 use bytes::BytesMut;
+use lagrange_proto::*;
 
 #[test]
 fn test_large_vec_u32() {
@@ -9,7 +8,7 @@ fn test_large_vec_u32() {
     let mut buf = BytesMut::new();
     vec.encode(&mut buf).unwrap();
 
-    assert!(buf.len() > 0);
+    assert!(!buf.is_empty());
     assert_eq!(vec.encoded_size(), buf.len());
 }
 
@@ -20,7 +19,7 @@ fn test_large_vec_u64() {
     let mut buf = BytesMut::new();
     vec.encode(&mut buf).unwrap();
 
-    assert!(buf.len() > 0);
+    assert!(!buf.is_empty());
 }
 
 #[test]
@@ -49,9 +48,7 @@ fn test_very_large_bytes() {
 #[test]
 fn test_many_small_strings() {
     // 10k small strings
-    let strings: Vec<String> = (0..10_000)
-        .map(|i| format!("string_{}", i))
-        .collect();
+    let strings: Vec<String> = (0..10_000).map(|i| format!("string_{}", i)).collect();
 
     let size = strings.encoded_size();
     assert!(size > 0);
@@ -197,7 +194,7 @@ fn test_repeated_zigzag_encoding() {
     let mut buf = BytesMut::new();
     vec.encode(&mut buf).unwrap();
 
-    assert!(buf.len() > 0);
+    assert!(!buf.is_empty());
 }
 
 #[test]
@@ -212,7 +209,7 @@ fn test_large_bool_array() {
 
 #[test]
 fn test_large_float_array() {
-    let floats = vec![3.14159f32; 25_000];
+    let floats = vec![std::f32::consts::PI; 25_000];
     let mut buf = BytesMut::new();
     floats.encode(&mut buf).unwrap();
 
@@ -222,7 +219,7 @@ fn test_large_float_array() {
 
 #[test]
 fn test_large_double_array() {
-    let doubles = vec![3.14159265359f64; 12_500];
+    let doubles = vec![std::f64::consts::PI; 12_500];
     let mut buf = BytesMut::new();
     doubles.encode(&mut buf).unwrap();
 
@@ -388,9 +385,7 @@ fn test_string_with_many_unicode_chars() {
 #[test]
 fn test_nested_vec_of_vec() {
     // Vec of Vec
-    let outer: Vec<Vec<u32>> = (0..1_000)
-        .map(|i| vec![i, i + 1, i + 2])
-        .collect();
+    let outer: Vec<Vec<u32>> = (0..1_000).map(|i| vec![i, i + 1, i + 2]).collect();
 
     let size = outer.encoded_size();
     assert!(size > 0);

@@ -1,5 +1,4 @@
-
-use crate::varint::num::{VarIntTarget, SignedVarIntTarget};
+use crate::varint::num::{SignedVarIntTarget, VarIntTarget};
 
 pub mod simd;
 
@@ -35,7 +34,9 @@ pub fn decode_len<T: VarIntTarget>(buf: &[u8]) -> Result<usize, DecodeError> {
 
 /// Decode a varint with ZigZag decoding (for signed integers).
 #[inline]
-pub fn decode_zigzag<T: VarIntTarget + 'static>(buf: &[u8]) -> Result<(T::Signed, usize), DecodeError>
+pub fn decode_zigzag<T: VarIntTarget + 'static>(
+    buf: &[u8],
+) -> Result<(T::Signed, usize), DecodeError>
 where
     T::Signed: SignedVarIntTarget<Unsigned = T>,
 {
@@ -59,7 +60,10 @@ mod tests {
     fn test_decode_len() {
         assert_eq!(decode_len::<u32>(&[0]).unwrap(), 1);
         assert_eq!(decode_len::<u32>(&[0x80, 0x01]).unwrap(), 2);
-        assert_eq!(decode_len::<u32>(&[0xFF, 0xFF, 0xFF, 0xFF, 0x0F]).unwrap(), 5);
+        assert_eq!(
+            decode_len::<u32>(&[0xFF, 0xFF, 0xFF, 0xFF, 0x0F]).unwrap(),
+            5
+        );
     }
 
     #[test]

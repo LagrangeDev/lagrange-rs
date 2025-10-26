@@ -52,23 +52,28 @@ impl<'a> ServicePacker<'a> {
 
         let mut writer = BinaryPacket::with_capacity(0x200);
 
-        writer.with_length_prefix::<u32, _, _>(true, 0, |w| {
-            w.write(12i32);
-            w.write(encrypt_type as u8);
+        writer
+            .with_length_prefix::<u32, _, _>(true, 0, |w| {
+                w.write(12i32);
+                w.write(encrypt_type as u8);
 
-            if encrypt_type == EncryptType::EncryptD2Key {
-                w.write_bytes_with_prefix(&self.keystore.sigs.d2, Prefix::INT32 | Prefix::WITH_PREFIX);
-            } else {
-                w.write(4u32);
-            }
+                if encrypt_type == EncryptType::EncryptD2Key {
+                    w.write_bytes_with_prefix(
+                        &self.keystore.sigs.d2,
+                        Prefix::INT32 | Prefix::WITH_PREFIX,
+                    );
+                } else {
+                    w.write(4u32);
+                }
 
-            w.write(0u8);
-            w.write_str(
-                &self.keystore.uin.unwrap_or(0).to_string(),
-                Prefix::INT32 | Prefix::WITH_PREFIX,
-            );
-            w.write_bytes(&cipher);
-        }).unwrap();
+                w.write(0u8);
+                w.write_str(
+                    &self.keystore.uin.unwrap_or(0).to_string(),
+                    Prefix::INT32 | Prefix::WITH_PREFIX,
+                );
+                w.write_bytes(&cipher);
+            })
+            .unwrap();
 
         writer.to_vec()
     }
@@ -93,17 +98,19 @@ impl<'a> ServicePacker<'a> {
 
         let mut writer = BinaryPacket::with_capacity(0x200);
 
-        writer.with_length_prefix::<u32, _, _>(true, 0, |w| {
-            w.write(13i32);
-            w.write(encrypt_type as u8);
-            w.write(sequence);
-            w.write(0u8);
-            w.write_str(
-                &self.keystore.uin.unwrap_or(0).to_string(),
-                Prefix::INT32 | Prefix::WITH_PREFIX,
-            );
-            w.write_bytes(&cipher);
-        }).unwrap();
+        writer
+            .with_length_prefix::<u32, _, _>(true, 0, |w| {
+                w.write(13i32);
+                w.write(encrypt_type as u8);
+                w.write(sequence);
+                w.write(0u8);
+                w.write_str(
+                    &self.keystore.uin.unwrap_or(0).to_string(),
+                    Prefix::INT32 | Prefix::WITH_PREFIX,
+                );
+                w.write_bytes(&cipher);
+            })
+            .unwrap();
 
         writer.to_vec()
     }
@@ -113,8 +120,12 @@ impl<'a> ServicePacker<'a> {
         let mut reader = BinaryPacket::from_slice(input);
 
         let _length = reader.read::<u32>().map_err(|_| "Failed to read length")?;
-        let _protocol = reader.read::<i32>().map_err(|_| "Failed to read protocol")?;
-        let auth_flag = reader.read::<u8>().map_err(|_| "Failed to read auth flag")?;
+        let _protocol = reader
+            .read::<i32>()
+            .map_err(|_| "Failed to read protocol")?;
+        let auth_flag = reader
+            .read::<u8>()
+            .map_err(|_| "Failed to read auth flag")?;
         let _dummy = reader.read::<u8>().map_err(|_| "Failed to read dummy")?;
 
         let _uin_str = reader

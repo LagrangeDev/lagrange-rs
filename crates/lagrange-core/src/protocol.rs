@@ -1,19 +1,20 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[repr(u8)]
 pub enum Protocols {
-    None         = 0b00000000,
-    Windows      = 0b00000001,
-    MacOs        = 0b00000010,
-    Linux        = 0b00000100,
+    None = 0b00000000,
+    Windows = 0b00000001,
+    MacOs = 0b00000010,
+    Linux = 0b00000100,
     AndroidPhone = 0b00001000,
-    AndroidPad   = 0b00010000,
+    AndroidPad = 0b00010000,
     AndroidWatch = 0b00100000,
 }
 
 impl Protocols {
     pub const PC: u8 = Self::Windows as u8 | Self::MacOs as u8 | Self::Linux as u8;
 
-    pub const ANDROID: u8 = Self::AndroidPhone as u8 | Self::AndroidPad as u8 | Self::AndroidWatch as u8;
+    pub const ANDROID: u8 =
+        Self::AndroidPhone as u8 | Self::AndroidPad as u8 | Self::AndroidWatch as u8;
 
     pub const ALL: u8 = Self::PC | Self::ANDROID;
 
@@ -73,7 +74,10 @@ impl EventMessage {
         if self.type_id == std::any::TypeId::of::<T>() {
             let ptr = std::sync::Arc::as_ptr(&self.payload);
             let typed_ptr = ptr as *const T;
-            Some(unsafe { std::sync::Arc::from_raw(typed_ptr) })
+            unsafe {
+                std::sync::Arc::increment_strong_count(typed_ptr);
+                Some(std::sync::Arc::from_raw(typed_ptr))
+            }
         } else {
             None
         }

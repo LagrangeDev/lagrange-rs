@@ -1,8 +1,8 @@
 use crate::{
     common::BotAppInfo,
     config::BotConfig,
-    keystore::BotKeystore,
     internal::context::{CacheContext, EventContext, PacketContext, ServiceContext, SocketContext},
+    keystore::BotKeystore,
     protocol::{EventMessage, ProtocolEvent},
 };
 use std::sync::Arc;
@@ -126,11 +126,7 @@ impl BotContextBuilder {
         let app_info_arc = Arc::new(app_info.clone());
 
         // PacketContext needs keystore, app_info, and config
-        let packet = PacketContext::new(
-            keystore_arc,
-            app_info_arc,
-            &config,
-        );
+        let packet = PacketContext::new(keystore_arc, app_info_arc, &config);
 
         let service = ServiceContext::new(&config);
 

@@ -7,10 +7,10 @@
 
 use proc_macro::TokenStream;
 
-mod utils;
-mod service;
-mod event_subscribe;
 mod define_service;
+mod event_subscribe;
+mod service;
+mod utils;
 
 /// Attribute macro for services registration.
 ///

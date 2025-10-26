@@ -1,12 +1,12 @@
 use proc_macro::TokenStream;
 use quote::quote;
 use syn::{
+    braced,
     parse::{Parse, ParseStream},
-    parse_macro_input, Ident, LitBool, LitStr, Path, Token,
-    braced, Type, Block, ReturnType, Signature,
+    parse_macro_input, Block, Ident, LitBool, LitStr, Path, ReturnType, Signature, Token, Type,
 };
 
-use crate::utils::{validate_path_structure, suggest_closest_match};
+use crate::utils::{suggest_closest_match, validate_path_structure};
 
 /// Struct field definition for services! macro
 struct ServiceField {
@@ -30,7 +30,10 @@ impl ServiceFunction {
         if fn_name != expected_name {
             return Err(syn::Error::new(
                 fn_name.span(),
-                format!("Expected function name '{}', found '{}'", expected_name, fn_name)
+                format!(
+                    "Expected function name '{}', found '{}'",
+                    expected_name, fn_name
+                ),
             ));
         }
 
@@ -136,7 +139,10 @@ impl Parse for UnifiedServiceArgs {
                 } else if fn_name == "build" {
                     build_fn = Some(ServiceFunction::parse_with_name(&content, "build")?);
                 } else {
-                    return Err(syn::Error::new(fn_name.span(), "Expected 'parse' or 'build'"));
+                    return Err(syn::Error::new(
+                        fn_name.span(),
+                        "Expected 'parse' or 'build'",
+                    ));
                 }
             } else if lookahead.peek(Ident) {
                 let key: Ident = content.parse()?;
@@ -186,7 +192,13 @@ impl Parse for UnifiedServiceArgs {
                     response_fields = fields;
                 } else {
                     // Unknown key - provide helpful suggestions
-                    let valid_keys = &["request_type", "encrypt_type", "disable_log", "request", "response"];
+                    let valid_keys = &[
+                        "request_type",
+                        "encrypt_type",
+                        "disable_log",
+                        "request",
+                        "response",
+                    ];
                     let key_str = key.to_string();
                     let mut error_msg = format!("Unknown key: '{}'\n\nValid keys are:\n  - request_type: RequestType\n  - encrypt_type: EncryptType\n  - disable_log: bool\n  - request <Name> {{ fields }}\n  - response <Name> {{ fields }}", key_str);
 

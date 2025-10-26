@@ -1,4 +1,3 @@
-
 use syn::{
     parse::{Parse, ParseStream},
     punctuated::Punctuated,
@@ -7,7 +6,6 @@ use syn::{
 
 #[derive(Debug, Clone, Default)]
 pub struct ProtoFieldAttrs {
-    
     pub tag: Option<u32>,
 
     pub packed: bool,
@@ -26,7 +24,6 @@ pub struct ProtoFieldAttrs {
 }
 
 impl ProtoFieldAttrs {
-    
     pub fn from_field(field: &Field) -> Result<Self> {
         let mut attrs = ProtoFieldAttrs::default();
 
@@ -111,21 +108,20 @@ impl Parse for ProtoAttrList {
 }
 
 enum ProtoAttr {
-    
     Tag(u32),
-    
+
     Packed,
-    
+
     Required,
-    
+
     Optional,
-    
+
     Default(String),
-    
+
     Oneof(String),
-    
+
     Map,
-    
+
     WireType(String),
 }
 
@@ -141,7 +137,10 @@ impl Parse for ProtoAttr {
                 if let Lit::Int(int_lit) = lit {
                     Ok(ProtoAttr::Tag(int_lit.base10_parse()?))
                 } else {
-                    Err(syn::Error::new_spanned(lit, "Expected integer literal for tag"))
+                    Err(syn::Error::new_spanned(
+                        lit,
+                        "Expected integer literal for tag",
+                    ))
                 }
             }
             "packed" => Ok(ProtoAttr::Packed),
@@ -160,17 +159,18 @@ impl Parse for ProtoAttr {
                 }
             }
             "oneof" => {
-                
                 if input.peek(Token![=]) {
                     input.parse::<Token![=]>()?;
                     let lit: Lit = input.parse()?;
                     if let Lit::Str(str_lit) = lit {
                         Ok(ProtoAttr::Oneof(str_lit.value()))
                     } else {
-                        Err(syn::Error::new_spanned(lit, "Expected string literal for oneof"))
+                        Err(syn::Error::new_spanned(
+                            lit,
+                            "Expected string literal for oneof",
+                        ))
                     }
                 } else {
-                    
                     Ok(ProtoAttr::Oneof(String::new()))
                 }
             }
@@ -180,24 +180,28 @@ impl Parse for ProtoAttr {
                 if let Lit::Str(str_lit) = lit {
                     Ok(ProtoAttr::WireType(str_lit.value()))
                 } else {
-                    Err(syn::Error::new_spanned(lit, "Expected string literal for wire_type"))
+                    Err(syn::Error::new_spanned(
+                        lit,
+                        "Expected string literal for wire_type",
+                    ))
                 }
             }
-            _ => Err(syn::Error::new_spanned(ident, format!("Unknown proto attribute: {}", name))),
+            _ => Err(syn::Error::new_spanned(
+                ident,
+                format!("Unknown proto attribute: {}", name),
+            )),
         }
     }
 }
 
 #[derive(Debug, Clone, Default)]
 pub struct ProtoMessageAttrs {
-    
     pub syntax: Option<String>,
 
     pub preserve_unknown: bool,
 }
 
 impl ProtoMessageAttrs {
-    
     pub fn from_derive_input(input: &syn::DeriveInput) -> Result<Self> {
         let mut attrs = ProtoMessageAttrs::default();
 
@@ -239,9 +243,8 @@ impl Parse for ProtoMessageAttrList {
 }
 
 enum ProtoMessageAttr {
-    
     Syntax(String),
-    
+
     PreserveUnknown,
 }
 
@@ -257,7 +260,10 @@ impl Parse for ProtoMessageAttr {
                 if let Lit::Str(str_lit) = lit {
                     Ok(ProtoMessageAttr::Syntax(str_lit.value()))
                 } else {
-                    Err(syn::Error::new_spanned(lit, "Expected string literal for syntax"))
+                    Err(syn::Error::new_spanned(
+                        lit,
+                        "Expected string literal for syntax",
+                    ))
                 }
             }
             "preserve_unknown" => Ok(ProtoMessageAttr::PreserveUnknown),
@@ -272,7 +278,6 @@ impl Parse for ProtoMessageAttr {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use quote::quote;
     use syn::parse_quote;
 
     #[test]

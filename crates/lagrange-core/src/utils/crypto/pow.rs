@@ -19,10 +19,16 @@ impl PowProvider {
         let pow_type = packet.read::<u32>().map_err(|e| e.to_string())?;
         let hash_type = packet.read::<u8>().map_err(|e| e.to_string())?;
         let target_len = packet.read::<u16>().map_err(|e| e.to_string())? as usize;
-        let target = packet.read_bytes(target_len).map_err(|e| e.to_string())?.to_vec();
+        let target = packet
+            .read_bytes(target_len)
+            .map_err(|e| e.to_string())?
+            .to_vec();
 
         let data_len = packet.read::<u16>().map_err(|e| e.to_string())? as usize;
-        let data = packet.read_bytes(data_len).map_err(|e| e.to_string())?.to_vec();
+        let data = packet
+            .read_bytes(data_len)
+            .map_err(|e| e.to_string())?
+            .to_vec();
 
         let max_iterations = packet.read::<u64>().map_err(|e| e.to_string())?;
         let effective_max = if max_iterations > 0 && max_iterations < MAX_ITERATIONS {
@@ -58,7 +64,10 @@ impl PowProvider {
         }
 
         if !found {
-            return Err(format!("PoW failed: exceeded maximum iterations ({})", effective_max));
+            return Err(format!(
+                "PoW failed: exceeded maximum iterations ({})",
+                effective_max
+            ));
         }
 
         let elapsed_ms = start_time.elapsed().as_millis() as u64;
@@ -75,9 +84,7 @@ impl PowProvider {
         response.write_bytes(&nonce_bytes);
 
         // Write timing and iteration info
-        response
-            .write(elapsed_ms)
-            .write(iterations);
+        response.write(elapsed_ms).write(iterations);
 
         Ok(response.to_vec())
     }
@@ -98,13 +105,13 @@ impl PowProvider {
         let test_bytes = test_number.to_be_bytes();
 
         // Compute SHA256 hash as target
-        let target = Sha256::digest(&test_bytes);
+        let target = Sha256::digest(test_bytes);
 
         // Build TLV546 input for TLV547
         let mut tlv546 = BinaryPacket::with_capacity(256);
         tlv546.write(1u16); // version
         tlv546.write(1u32); // type
-        tlv546.write(1u8);  // hash_type
+        tlv546.write(1u8); // hash_type
         tlv546.write(target.len() as u16);
         tlv546.write_bytes(&target);
         tlv546.write(random_bytes.len() as u16);

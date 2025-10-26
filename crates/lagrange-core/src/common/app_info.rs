@@ -184,21 +184,9 @@ impl AppInfo {
 
     pub fn android(variant: AndroidVariant) -> Self {
         let (sub_app_id, current_version, package_name) = match variant {
-            AndroidVariant::Phone => (
-                537275636,
-                "9.1.60.045f5d19",
-                "com.tencent.mobileqq",
-            ),
-            AndroidVariant::Pad => (
-                537275675,
-                "9.1.60.045f5d19",
-                "com.tencent.mobileqq",
-            ),
-            AndroidVariant::Watch => (
-                537258298,
-                "testrevision",
-                "com.tencent.qqlite",
-            ),
+            AndroidVariant::Phone => (537275636, "9.1.60.045f5d19", "com.tencent.mobileqq"),
+            AndroidVariant::Pad => (537275675, "9.1.60.045f5d19", "com.tencent.mobileqq"),
+            AndroidVariant::Watch => (537258298, "testrevision", "com.tencent.qqlite"),
         };
 
         Self {
@@ -210,8 +198,8 @@ impl AppInfo {
             sso_version: 22,
             package_name: package_name.to_string(),
             apk_signature_md5: vec![
-                0xA6, 0xB7, 0x45, 0xBF, 0x24, 0xA2, 0xC2, 0x77, 0x52, 0x77, 0x16, 0xF6, 0xF3,
-                0x6E, 0xB6, 0x8D,
+                0xA6, 0xB7, 0x45, 0xBF, 0x24, 0xA2, 0xC2, 0x77, 0x52, 0x77, 0x16, 0xF6, 0xF3, 0x6E,
+                0xB6, 0x8D,
             ],
             sdk_info: WtLoginSdkInfo::android(variant),
             app_id: 16,

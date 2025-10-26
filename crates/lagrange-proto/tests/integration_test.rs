@@ -1,5 +1,4 @@
-
-use lagrange_proto::{ProtoMessage, ProtoEncode};
+use lagrange_proto::{ProtoEncode, ProtoMessage};
 
 #[derive(Debug, PartialEq, ProtoMessage)]
 struct SimpleMessage {
@@ -47,7 +46,6 @@ fn test_simple_message_roundtrip() {
 
 #[test]
 fn test_message_with_optional() {
-    
     let msg = MessageWithOptional {
         id: 12345,
         name: Some("optional".to_string()),

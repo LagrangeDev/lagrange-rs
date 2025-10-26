@@ -1,8 +1,9 @@
-
-use lagrange_proto::decoding::FieldReader;
-use lagrange_proto::encoding::{encode_varint_field, encode_fixed32_field, encode_fixed64_field, encode_length_delimited};
-use lagrange_proto::wire::WireType;
 use bytes::BytesMut;
+use lagrange_proto::decoding::FieldReader;
+use lagrange_proto::encoding::{
+    encode_fixed32_field, encode_fixed64_field, encode_length_delimited, encode_varint_field,
+};
+use lagrange_proto::wire::WireType;
 
 #[test]
 fn test_field_reader_basic_usage() {
@@ -281,7 +282,7 @@ fn test_field_reader_read_field_data_varint() {
     let data = reader.read_field_data(wire_type).unwrap();
 
     // Verify the data can be decoded
-    assert!(data.len() > 0);
+    assert!(!data.is_empty());
 }
 
 #[test]

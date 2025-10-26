@@ -60,13 +60,15 @@ impl<'a> TlvQrCode<'a> {
     pub fn tlv_04(&mut self) {
         self.write_tlv(0x04, |this| {
             this.writer.write(0x00i16); // uin for 0, uid for 1
-            this.writer.write_str(&this.keystore.uin.unwrap_or(0).to_string(), Prefix::INT16);
+            this.writer
+                .write_str(&this.keystore.uin.unwrap_or(0).to_string(), Prefix::INT16);
         });
     }
 
     pub fn tlv_09(&mut self) {
         self.write_tlv(0x09, |this| {
-            this.writer.write_bytes(this.app_info.package_name.as_bytes());
+            this.writer
+                .write_bytes(this.app_info.package_name.as_bytes());
         });
     }
 
@@ -88,9 +90,12 @@ impl<'a> TlvQrCode<'a> {
             this.writer.write(this.app_info.app_id);
             this.writer.write(this.app_info.sub_app_id);
             this.writer.write_bytes(&this.keystore.guid);
-            this.writer.write_str(&this.app_info.package_name, Prefix::INT16);
-            this.writer.write_str(&this.app_info.pt_version, Prefix::INT16);
-            this.writer.write_str(&this.app_info.package_name, Prefix::INT16);
+            this.writer
+                .write_str(&this.app_info.package_name, Prefix::INT16);
+            this.writer
+                .write_str(&this.app_info.pt_version, Prefix::INT16);
+            this.writer
+                .write_str(&this.app_info.package_name, Prefix::INT16);
         });
     }
 

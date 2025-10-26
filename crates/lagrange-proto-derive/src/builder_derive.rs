@@ -1,8 +1,6 @@
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::{
-    Data, DeriveInput, Fields, FieldsNamed, GenericArgument, PathArguments, Result, Type,
-};
+use syn::{Data, DeriveInput, Fields, FieldsNamed, GenericArgument, PathArguments, Result, Type};
 
 /// Information about a field for builder generation
 struct BuilderFieldInfo {
@@ -43,10 +41,7 @@ fn generate_builder_method(field: &BuilderFieldInfo) -> TokenStream {
     let param_ty = &field.param_ty;
 
     // Create method name with "with_" prefix
-    let method_name = syn::Ident::new(
-        &format!("with_{}", name),
-        name.span(),
-    );
+    let method_name = syn::Ident::new(&format!("with_{}", name), name.span());
 
     if field.is_option {
         // For Option<T> fields, take T and wrap in Some()

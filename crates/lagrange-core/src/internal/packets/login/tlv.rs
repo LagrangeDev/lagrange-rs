@@ -157,7 +157,7 @@ impl<'a> Tlv<'a> {
             plain_writer.write(1u8);
             plain_writer.write_bytes(&md5_hash.0);
             plain_writer.write_bytes(&this.keystore.sigs.tgtgt_key);
-            plain_writer.write(0u32);  // unknown
+            plain_writer.write(0u32); // unknown
             plain_writer.write(1u8); // guidAvailable
             plain_writer.write_bytes(&this.keystore.guid);
             plain_writer.write(this.app_info.sub_app_id);
@@ -245,7 +245,8 @@ impl<'a> Tlv<'a> {
             this.writer.write(0u8); // guid changed
             this.writer.write(0u32); // guid flag
             this.writer.write_str(&this.app_info.os, Prefix::INT16);
-            this.writer.write_bytes_with_prefix(&this.keystore.guid, Prefix::INT16);
+            this.writer
+                .write_bytes_with_prefix(&this.keystore.guid, Prefix::INT16);
             this.writer.write_str("", Prefix::INT16); // brand
         });
     }
@@ -270,7 +271,8 @@ impl<'a> Tlv<'a> {
     pub fn tlv_142(&mut self) {
         self.write_tlv(0x142, |this| {
             this.writer.write(0u16);
-            this.writer.write_str(&this.app_info.package_name, Prefix::INT16);
+            this.writer
+                .write_str(&this.app_info.package_name, Prefix::INT16);
         });
     }
 
@@ -323,14 +325,16 @@ impl<'a> Tlv<'a> {
     pub fn tlv_147(&mut self) {
         self.write_tlv(0x147, |this| {
             this.writer.write(this.app_info.app_id);
-            this.writer.write_str(&this.app_info.pt_version, Prefix::INT16);
-            this.writer.write_bytes_with_prefix(&this.app_info.apk_signature_md5, Prefix::INT16);
+            this.writer
+                .write_str(&this.app_info.pt_version, Prefix::INT16);
+            this.writer
+                .write_bytes_with_prefix(&this.app_info.apk_signature_md5, Prefix::INT16);
         });
     }
 
     pub fn tlv_154(&mut self) {
         self.write_tlv(0x154, |this| {
-            this.writer.write(0u32);  // seq
+            this.writer.write(0u32); // seq
         });
     }
 
@@ -350,7 +354,8 @@ impl<'a> Tlv<'a> {
 
     pub fn tlv_16e(&mut self) {
         self.write_tlv(0x16E, |this| {
-            this.writer.write_bytes(this.keystore.device_name.as_bytes());
+            this.writer
+                .write_bytes(this.keystore.device_name.as_bytes());
         });
     }
 
@@ -364,7 +369,8 @@ impl<'a> Tlv<'a> {
         self.write_tlv(0x177, |this| {
             this.writer.write(1u8);
             this.writer.write(0u32); // sdk build time
-            this.writer.write_str(&this.app_info.sdk_info.sdk_version, Prefix::INT16);
+            this.writer
+                .write_str(&this.app_info.sdk_info.sdk_version, Prefix::INT16);
         });
     }
 
@@ -382,7 +388,7 @@ impl<'a> Tlv<'a> {
 
     pub fn tlv_187(&mut self) {
         self.write_tlv(0x187, |this| {
-            let hash = md5::compute(&[0x02, 0x00, 0x00, 0x00, 0x00, 0x00]); // Dummy Mac Address
+            let hash = md5::compute([0x02, 0x00, 0x00, 0x00, 0x00, 0x00]); // Dummy Mac Address
             this.writer.write_bytes(&hash.0);
         });
     }
@@ -419,8 +425,7 @@ impl<'a> Tlv<'a> {
     }
 
     pub fn tlv_318(&mut self) {
-        self.write_tlv(0x318, |_this| {
-        });
+        self.write_tlv(0x318, |_this| {});
     }
 
     pub fn tlv_400(&mut self) {
@@ -507,7 +512,8 @@ impl<'a> Tlv<'a> {
         self.write_tlv(0x525, |this| {
             this.writer.write(1i16); // tlvCount
             this.writer.write(0x536i16); // tlv536
-            this.writer.write_bytes_with_prefix(&[0x02, 0x01, 0x00], Prefix::INT16);
+            this.writer
+                .write_bytes_with_prefix(&[0x02, 0x01, 0x00], Prefix::INT16);
         });
     }
 

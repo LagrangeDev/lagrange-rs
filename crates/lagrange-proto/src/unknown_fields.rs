@@ -1,15 +1,13 @@
-
 use crate::wire::WireType;
 use crate::{EncodeError, ProtoEncode};
 use bytes::BufMut;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct UnknownField {
-    
     pub tag: u32,
-    
+
     pub wire_type: WireType,
-    
+
     pub data: Vec<u8>,
 }
 
@@ -19,11 +17,8 @@ pub struct UnknownFields {
 }
 
 impl UnknownFields {
-    
     pub fn new() -> Self {
-        UnknownFields {
-            fields: Vec::new(),
-        }
+        UnknownFields { fields: Vec::new() }
     }
 
     pub fn add(&mut self, tag: u32, wire_type: WireType, data: Vec<u8>) {
@@ -69,9 +64,7 @@ impl UnknownFields {
 
 impl ProtoEncode for UnknownFields {
     fn encode<B: BufMut>(&self, buf: &mut B) -> Result<(), EncodeError> {
-        
         for field in &self.fields {
-            
             let key = crate::wire::encode_key(field.tag, field.wire_type);
             let (arr, len) = crate::varint::encode(key as u64);
             buf.put_slice(&arr[..len]);
@@ -84,10 +77,9 @@ impl ProtoEncode for UnknownFields {
     fn encoded_size(&self) -> usize {
         let mut size = 0;
         for field in &self.fields {
-            
             let key = crate::wire::encode_key(field.tag, field.wire_type);
             size += crate::helpers::get_varint_length_u32(key);
-            
+
             size += field.data.len();
         }
         size
@@ -180,7 +172,7 @@ mod tests {
         use bytes::BytesMut;
 
         let mut fields = UnknownFields::new();
-        
+
         fields.add(1, WireType::Varint, vec![0x2A]);
 
         let mut buf = BytesMut::new();
@@ -192,11 +184,11 @@ mod tests {
     #[test]
     fn test_unknown_fields_encoded_size() {
         let mut fields = UnknownFields::new();
-        
+
         fields.add(1, WireType::Varint, vec![0x2A]);
 
         let size = fields.encoded_size();
-        
+
         assert_eq!(size, 2);
     }
 }

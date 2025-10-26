@@ -1,8 +1,6 @@
-
 use std::fmt::Debug;
 
 pub trait VarIntTarget: Debug + Copy + Sized + PartialEq + Eq + PartialOrd + Ord {
-    
     type Signed: SignedVarIntTarget<Unsigned = Self>;
 
     const MAX_VARINT_BYTES: usize;
@@ -31,7 +29,6 @@ pub trait VarIntTarget: Debug + Copy + Sized + PartialEq + Eq + PartialOrd + Ord
 }
 
 pub trait SignedVarIntTarget: Debug + Copy + Sized + PartialEq + Eq + PartialOrd + Ord {
-    
     type Unsigned: VarIntTarget<Signed = Self>;
 
     #[inline(always)]
@@ -87,7 +84,7 @@ impl VarIntTarget for u8 {
         }
 
         let result = (first & 0x7F) | ((second & 0x7F) << 7);
-        Ok((result as u8, 2))
+        Ok((result, 2))
     }
 
     #[inline(always)]
@@ -248,7 +245,9 @@ impl VarIntTarget for u16 {
 
     #[inline(always)]
     fn scalar_to_num(x: u64) -> Self {
-        ((x & 0x000000000000007f) | ((x & 0x0000000000030000) >> 2) | ((x & 0x0000000000007f00) >> 1)) as u16
+        ((x & 0x000000000000007f)
+            | ((x & 0x0000000000030000) >> 2)
+            | ((x & 0x0000000000007f00) >> 1)) as u16
     }
 
     #[inline(always)]
@@ -339,7 +338,11 @@ impl VarIntTarget for u32 {
     #[inline(always)]
     fn num_to_scalar_stage1(self) -> u64 {
         let x = self as u64;
-        (x & 0x7f) | ((x & 0x3f80) << 1) | ((x & 0x1fc000) << 2) | ((x & 0xfe00000) << 3) | ((x & 0xf0000000) << 4)
+        (x & 0x7f)
+            | ((x & 0x3f80) << 1)
+            | ((x & 0x1fc000) << 2)
+            | ((x & 0xfe00000) << 3)
+            | ((x & 0xf0000000) << 4)
     }
 
     #[inline(always)]
@@ -352,7 +355,11 @@ impl VarIntTarget for u32 {
 
     #[inline(always)]
     fn scalar_to_num(x: u64) -> Self {
-        ((x & 0x000000000000007f) | ((x & 0x0000000f00000000) >> 4) | ((x & 0x000000007f000000) >> 3) | ((x & 0x00000000007f0000) >> 2) | ((x & 0x0000000000007f00) >> 1)) as u32
+        ((x & 0x000000000000007f)
+            | ((x & 0x0000000f00000000) >> 4)
+            | ((x & 0x000000007f000000) >> 3)
+            | ((x & 0x00000000007f0000) >> 2)
+            | ((x & 0x0000000000007f00) >> 1)) as u32
     }
 
     #[inline(always)]
@@ -442,7 +449,6 @@ impl VarIntTarget for u64 {
 
     #[inline(always)]
     fn num_to_scalar_stage1(self) -> u64 {
-        
         panic!("u64 should use vector stage1")
     }
 
@@ -516,7 +522,14 @@ impl VarIntTarget for u64 {
         let mut res = [0u64; 2];
         let x = self;
 
-        res[0] = (x & 0x000000000000007f) | ((x & 0x0000000000003f80) << 1) | ((x & 0x00000000001fc000) << 2) | ((x & 0x000000000fe00000) << 3) | ((x & 0x00000007f0000000) << 4) | ((x & 0x000003f800000000) << 5) | ((x & 0x0001fc0000000000) << 6) | ((x & 0x00fe000000000000) << 7);
+        res[0] = (x & 0x000000000000007f)
+            | ((x & 0x0000000000003f80) << 1)
+            | ((x & 0x00000000001fc000) << 2)
+            | ((x & 0x000000000fe00000) << 3)
+            | ((x & 0x00000007f0000000) << 4)
+            | ((x & 0x000003f800000000) << 5)
+            | ((x & 0x0001fc0000000000) << 6)
+            | ((x & 0x00fe000000000000) << 7);
         res[1] = ((x & 0x7f00000000000000) >> 56) | ((x & 0x8000000000000000) >> 55);
 
         unsafe { core::mem::transmute(res) }
@@ -524,7 +537,6 @@ impl VarIntTarget for u64 {
 
     #[inline(always)]
     fn scalar_to_num(_stage1: u64) -> Self {
-        
         panic!("u64 should use vector_to_num")
     }
 
@@ -590,10 +602,7 @@ impl VarIntTarget for u64 {
 
         let y = arr[1];
 
-        pt1
-            
-            | ((y & 0x0000000000000100) << 55)
-            | ((y & 0x000000000000007f) << 56)
+        pt1 | ((y & 0x0000000000000100) << 55) | ((y & 0x000000000000007f) << 56)
     }
 
     #[inline(always)]
@@ -607,7 +616,16 @@ impl VarIntTarget for u64 {
         let x = arr[0];
         let y = arr[1];
 
-        (x & 0x000000000000007f) | ((x & 0x7f00000000000000) >> 7) | ((x & 0x007f000000000000) >> 6) | ((x & 0x00007f0000000000) >> 5) | ((x & 0x0000007f00000000) >> 4) | ((x & 0x000000007f000000) >> 3) | ((x & 0x00000000007f0000) >> 2) | ((x & 0x0000000000007f00) >> 1) | ((y & 0x0000000000000100) << 55) | ((y & 0x000000000000007f) << 56)
+        (x & 0x000000000000007f)
+            | ((x & 0x7f00000000000000) >> 7)
+            | ((x & 0x007f000000000000) >> 6)
+            | ((x & 0x00007f0000000000) >> 5)
+            | ((x & 0x0000007f00000000) >> 4)
+            | ((x & 0x000000007f000000) >> 3)
+            | ((x & 0x00000000007f0000) >> 2)
+            | ((x & 0x0000000000007f00) >> 1)
+            | ((y & 0x0000000000000100) << 55)
+            | ((y & 0x000000000000007f) << 56)
     }
 
     #[inline(always)]

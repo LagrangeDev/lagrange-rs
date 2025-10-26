@@ -1,4 +1,3 @@
-
 use crate::decoding::ProtoDecode;
 use crate::encoding::ProtoEncode;
 use crate::error::{DecodeError, EncodeError};
@@ -18,13 +17,15 @@ pub trait ProtoMessage: ProtoEncode + ProtoDecode {
     }
 
     fn decode_from_slice(buf: &[u8]) -> Result<Self, DecodeError>
-    where Self: Sized,
+    where
+        Self: Sized,
     {
         Self::decode(buf)
     }
 
     fn decode_from_bytes(buf: &Bytes) -> Result<Self, DecodeError>
-    where Self: Sized,
+    where
+        Self: Sized,
     {
         Self::decode(buf)
     }
@@ -38,7 +39,6 @@ mod tests {
 
     #[test]
     fn test_message_encode_decode() {
-        
         let original = "hello world".to_string();
         let bytes = original.encode_to_vec().unwrap();
         let decoded = String::decode_from_slice(&bytes).unwrap();

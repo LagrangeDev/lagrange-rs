@@ -1,6 +1,5 @@
-
-use lagrange_proto::*;
 use bytes::BytesMut;
+use lagrange_proto::*;
 
 // Note: u8 and u16 don't have ProtoEncode/ProtoDecode implementations
 // These types are tested through the varint module directly in varint_comprehensive_test.rs
@@ -8,17 +7,17 @@ use bytes::BytesMut;
 #[test]
 fn test_varint_boundary_u32() {
     let values = [
-        0u32,          // Minimum
-        127,           // Max 1-byte
-        128,           // Min 2-byte
-        16383,         // Max 2-byte
-        16384,         // Min 3-byte
-        2097151,       // Max 3-byte
-        2097152,       // Min 4-byte
-        268435455,     // Max 4-byte
-        268435456,     // Min 5-byte
-        u32::MAX - 1,  // Near maximum
-        u32::MAX,      // Maximum
+        0u32,         // Minimum
+        127,          // Max 1-byte
+        128,          // Min 2-byte
+        16383,        // Max 2-byte
+        16384,        // Min 3-byte
+        2097151,      // Max 3-byte
+        2097152,      // Min 4-byte
+        268435455,    // Max 4-byte
+        268435456,    // Min 5-byte
+        u32::MAX - 1, // Near maximum
+        u32::MAX,     // Maximum
     ];
 
     for &val in &values {
@@ -41,16 +40,16 @@ fn test_varint_boundary_u64() {
         2097152,
         268435455,
         268435456,
-        34359738367,      // Max 5-byte
-        34359738368,      // Min 6-byte
-        4398046511103,    // Max 6-byte
-        4398046511104,    // Min 7-byte
-        562949953421311,  // Max 7-byte
-        562949953421312,  // Min 8-byte
-        72057594037927935,    // Max 8-byte
-        72057594037927936,    // Min 9-byte
-        9223372036854775807,  // Max 9-byte (i64::MAX as u64)
-        9223372036854775808,  // Min 10-byte
+        34359738367,         // Max 5-byte
+        34359738368,         // Min 6-byte
+        4398046511103,       // Max 6-byte
+        4398046511104,       // Min 7-byte
+        562949953421311,     // Max 7-byte
+        562949953421312,     // Min 8-byte
+        72057594037927935,   // Max 8-byte
+        72057594037927936,   // Min 9-byte
+        9223372036854775807, // Max 9-byte (i64::MAX as u64)
+        9223372036854775808, // Min 10-byte
         u64::MAX - 1,
         u64::MAX,
     ];
@@ -239,19 +238,19 @@ fn test_large_bytes() {
 #[test]
 fn test_unicode_string_edge_cases() {
     let test_cases = vec![
-        "Hello, World!",                    // ASCII
-        "你好世界",                         // Chinese
-        "こんにちは",                       // Japanese
-        "안녕하세요",                       // Korean
-        "Привет",                          // Russian
-        "مرحبا",                           // Arabic (RTL)
-        "שלום",                            // Hebrew (RTL)
-        "😀😃😄😁",                        // Emoji
-        "👨‍👩‍👧‍👦",                  // Family emoji with ZWJ
-        "A̐",                              // Combining diacritical marks
-        "\u{0000}",                        // Null character
-        "\u{FFFF}",                        // Max BMP character
-        "🔥💯✨",                           // Modern emoji
+        "Hello, World!", // ASCII
+        "你好世界",      // Chinese
+        "こんにちは",    // Japanese
+        "안녕하세요",    // Korean
+        "Привет",        // Russian
+        "مرحبا",         // Arabic (RTL)
+        "שלום",          // Hebrew (RTL)
+        "😀😃😄😁",      // Emoji
+        "👨‍👩‍👧‍👦",            // Family emoji with ZWJ
+        "A̐",             // Combining diacritical marks
+        "\u{0000}",      // Null character
+        "\u{FFFF}",      // Max BMP character
+        "🔥💯✨",        // Modern emoji
     ];
 
     for s in test_cases {
@@ -293,8 +292,11 @@ fn test_wire_type_invalid_values() {
     use lagrange_proto::wire::WireType;
 
     for invalid in 6u8..=255 {
-        assert!(WireType::from_u8(invalid).is_err(),
-                "Wire type {} should be invalid", invalid);
+        assert!(
+            WireType::from_u8(invalid).is_err(),
+            "Wire type {} should be invalid",
+            invalid
+        );
     }
 }
 
@@ -312,12 +314,11 @@ fn test_key_large_tag_numbers() {
     use lagrange_proto::wire::{Key, WireType};
 
     let large_tags = [
-        1,
-        15,          // Max 1-byte key
-        16,          // Min 2-byte key
-        2047,        // Max 2-byte key
-        2048,        // Min 3-byte key
-        268435455,   // Max valid field number
+        1, 15,        // Max 1-byte key
+        16,        // Min 2-byte key
+        2047,      // Max 2-byte key
+        2048,      // Min 3-byte key
+        268435455, // Max valid field number
     ];
 
     for tag in large_tags {
@@ -403,8 +404,12 @@ fn test_varint_encoded_size_accuracy() {
     ];
 
     for (value, expected_len) in test_cases {
-        assert_eq!(get_varint_length_u32(value), expected_len,
-                  "Incorrect length for value {}", value);
+        assert_eq!(
+            get_varint_length_u32(value),
+            expected_len,
+            "Incorrect length for value {}",
+            value
+        );
         assert_eq!(value.encoded_size(), expected_len);
     }
 }
@@ -433,8 +438,12 @@ fn test_varint_encoded_size_u64_accuracy() {
     ];
 
     for (value, expected_len) in test_cases {
-        assert_eq!(get_varint_length_u64(value), expected_len,
-                  "Incorrect length for value {}", value);
+        assert_eq!(
+            get_varint_length_u64(value),
+            expected_len,
+            "Incorrect length for value {}",
+            value
+        );
         assert_eq!(value.encoded_size(), expected_len);
     }
 }
@@ -453,8 +462,12 @@ fn test_string_encoded_size_accuracy() {
     for s in test_strings {
         let mut buf = BytesMut::new();
         s.encode(&mut buf).unwrap();
-        assert_eq!(s.encoded_size(), buf.len(),
-                  "Size mismatch for string of length {}", s.len());
+        assert_eq!(
+            s.encoded_size(),
+            buf.len(),
+            "Size mismatch for string of length {}",
+            s.len()
+        );
     }
 }
 
@@ -507,7 +520,7 @@ fn test_consecutive_encoding() {
     true.encode(&mut buf).unwrap();
 
     // Verify buffer contains all values
-    assert!(buf.len() > 0);
+    assert!(!buf.is_empty());
 
     // We can decode in order
     let val1 = u32::decode(&buf[0..1]).unwrap();

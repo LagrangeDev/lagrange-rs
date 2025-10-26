@@ -1,15 +1,19 @@
-
 #[cfg(target_arch = "x86_64")]
 use std::arch::x86_64::*;
 
 use crate::varint::num::VarIntTarget;
 
+/// Encodes a varint using SIMD instructions.
+///
+/// # Safety
+///
+/// This function is unsafe because it uses SIMD intrinsics and requires SSE2 support.
+/// The caller must ensure the target CPU supports SSE2.
 #[cfg(target_arch = "x86_64")]
 #[target_feature(enable = "sse2")]
 #[inline]
 pub unsafe fn encode_unsafe<T: VarIntTarget>(num: T) -> ([u8; 16], usize) {
     if T::MAX_VARINT_BYTES <= 5 {
-        
         let stage1 = num.num_to_scalar_stage1();
 
         let leading = stage1.leading_zeros();
@@ -22,17 +26,16 @@ pub unsafe fn encode_unsafe<T: VarIntTarget>(num: T) -> ([u8; 16], usize) {
 
         (
             core::mem::transmute::<[u64; 2], [u8; 16]>([merged, 0]),
-            bytes_needed as usize
+            bytes_needed as usize,
         )
     } else {
-        
         let stage1: __m128i = core::mem::transmute(num.num_to_vector_stage1());
 
         let minimum = _mm_set_epi8(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xffu8 as i8);
         let exists = _mm_or_si128(_mm_cmpgt_epi8(stage1, _mm_setzero_si128()), minimum);
         let bits = _mm_movemask_epi8(exists);
 
-        let bytes = 32 - bits.leading_zeros() as usize; 
+        let bytes = 32 - bits.leading_zeros() as usize;
 
         let ascend = _mm_setr_epi8(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
         let mask = _mm_cmplt_epi8(ascend, _mm_set1_epi8(bytes as i8));
@@ -49,7 +52,6 @@ pub unsafe fn encode_unsafe<T: VarIntTarget>(num: T) -> ([u8; 16], usize) {
 #[cfg(target_arch = "x86_64")]
 #[inline]
 pub fn encode_simd<T: VarIntTarget>(num: T) -> ([u8; 16], usize) {
-    
     unsafe { encode_unsafe(num) }
 }
 
@@ -64,7 +66,8 @@ pub fn encode_to_slice_simd<T: VarIntTarget>(num: T, slice: &mut [u8]) -> usize 
 #[cfg(target_arch = "x86_64")]
 #[inline]
 pub fn encode_zigzag_simd<T: VarIntTarget>(num: T::Signed) -> ([u8; 16], usize)
-where T::Signed: crate::varint::num::SignedVarIntTarget<Unsigned = T>,
+where
+    T::Signed: crate::varint::num::SignedVarIntTarget<Unsigned = T>,
 {
     let unsigned = T::zigzag(num);
     encode_simd(unsigned)
@@ -85,7 +88,8 @@ pub fn encode_to_slice_simd<T: VarIntTarget>(num: T, slice: &mut [u8]) -> usize 
 #[cfg(not(target_arch = "x86_64"))]
 #[inline]
 pub fn encode_zigzag_simd<T: VarIntTarget>(num: T::Signed) -> ([u8; 16], usize)
-where T::Signed: crate::varint::num::SignedVarIntTarget<Unsigned = T>,
+where
+    T::Signed: crate::varint::num::SignedVarIntTarget<Unsigned = T>,
 {
     let unsigned = T::zigzag(num);
     super::encode(unsigned)
@@ -167,14 +171,13 @@ mod tests {
     #[cfg(target_arch = "x86_64")]
     #[test]
     fn test_stage1_and_msb_application() {
-        
-        let val = 300u32; 
+        let val = 300u32;
 
         let _stage1 = val.num_to_scalar_stage1();
-        
+
         let (buf, len) = encode_simd(val);
         assert_eq!(len, 2);
-        assert_eq!(buf[0], 0xAC); 
-        assert_eq!(buf[1], 0x02); 
+        assert_eq!(buf[0], 0xAC);
+        assert_eq!(buf[1], 0x02);
     }
 }

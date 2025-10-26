@@ -2,7 +2,9 @@ use crate::{
     common::{sign::BoxedSignProvider, AppInfo, BotAppInfo},
     config::BotConfig,
     error::{Error, Result},
-    internal::packets::{EncryptType, RequestType, ServicePacker, SsoPacket, SsoPacker, SsoSecureInfo},
+    internal::packets::{
+        EncryptType, RequestType, ServicePacker, SsoPacker, SsoPacket, SsoSecureInfo,
+    },
     keystore::BotKeystore,
     protocol::Protocols,
 };
@@ -169,7 +171,8 @@ impl PacketContext {
     }
 
     async fn get_secure_info(&self, packet: &SsoPacket) -> Option<SsoSecureInfo> {
-        let sign_result = self.sign_provider
+        let sign_result = self
+            .sign_provider
             .sign(&packet.command, packet.sequence as u32, &packet.data)
             .await?;
 
@@ -187,9 +190,11 @@ impl PacketContext {
         let service_packer = ServicePacker::new(&keystore, app_info);
         let sso_packer = SsoPacker::new(&keystore, app_info, self.protocol);
 
-        let sso_data = service_packer.parse(&data)
+        let sso_data = service_packer
+            .parse(&data)
             .map_err(|e| Error::ParseError(format!("Service parse failed: {}", e)))?;
-        let packet = sso_packer.parse(&sso_data)
+        let packet = sso_packer
+            .parse(&sso_data)
             .map_err(|e| Error::ParseError(format!("SSO parse failed: {}", e)))?;
 
         Ok(packet)

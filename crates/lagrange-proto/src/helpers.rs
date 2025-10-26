@@ -1,4 +1,3 @@
-
 use crate::encoding::ProtoEncode;
 
 const VARINT_LENGTHS_32: [u8; 32] = {
@@ -67,18 +66,12 @@ pub fn count_repeated<T: ProtoEncode>(items: &[T], tag_size: usize) -> usize {
 
 #[inline(always)]
 pub fn count_repeated_strings(strings: &[String], tag_size: usize) -> usize {
-    strings
-        .iter()
-        .map(|s| tag_size + count_string(s))
-        .sum()
+    strings.iter().map(|s| tag_size + count_string(s)).sum()
 }
 
 #[inline(always)]
 pub fn count_repeated_bytes(bytes_list: &[Vec<u8>], tag_size: usize) -> usize {
-    bytes_list
-        .iter()
-        .map(|b| tag_size + count_bytes(b))
-        .sum()
+    bytes_list.iter().map(|b| tag_size + count_bytes(b)).sum()
 }
 
 #[inline(always)]
@@ -94,35 +87,31 @@ mod tests {
 
     #[test]
     fn test_count_string() {
-        assert_eq!(count_string(""), 1); 
-        assert_eq!(count_string("hello"), 6); 
-        assert_eq!(count_string(&"a".repeat(127)), 128); 
-        assert_eq!(count_string(&"a".repeat(128)), 130); 
+        assert_eq!(count_string(""), 1);
+        assert_eq!(count_string("hello"), 6);
+        assert_eq!(count_string(&"a".repeat(127)), 128);
+        assert_eq!(count_string(&"a".repeat(128)), 130);
     }
 
     #[test]
     fn test_count_bytes() {
         assert_eq!(count_bytes(&[]), 1);
         assert_eq!(count_bytes(&[1, 2, 3, 4, 5]), 6);
-        assert_eq!(count_bytes(&vec![0u8; 127]), 128);
-        assert_eq!(count_bytes(&vec![0u8; 128]), 130);
+        assert_eq!(count_bytes(&[0u8; 127]), 128);
+        assert_eq!(count_bytes(&[0u8; 128]), 130);
     }
 
     #[test]
     fn test_field_tag_size() {
-        assert_eq!(field_tag_size(1, WireType::Varint), 1); 
-        assert_eq!(field_tag_size(2, WireType::LengthDelimited), 1); 
-        assert_eq!(field_tag_size(15, WireType::Varint), 1); 
-        assert_eq!(field_tag_size(16, WireType::Varint), 2); 
+        assert_eq!(field_tag_size(1, WireType::Varint), 1);
+        assert_eq!(field_tag_size(2, WireType::LengthDelimited), 1);
+        assert_eq!(field_tag_size(15, WireType::Varint), 1);
+        assert_eq!(field_tag_size(16, WireType::Varint), 2);
     }
 
     #[test]
     fn test_count_repeated_strings() {
-        let strings = vec![
-            "hello".to_string(),
-            "world".to_string(),
-            "test".to_string(),
-        ];
+        let strings = vec!["hello".to_string(), "world".to_string(), "test".to_string()];
         let tag_size = field_tag_size(1, WireType::LengthDelimited);
 
         let total = count_repeated_strings(&strings, tag_size);
@@ -132,11 +121,7 @@ mod tests {
 
     #[test]
     fn test_count_repeated_bytes() {
-        let bytes_list = vec![
-            vec![1, 2, 3],
-            vec![4, 5, 6, 7],
-            vec![8],
-        ];
+        let bytes_list = vec![vec![1, 2, 3], vec![4, 5, 6, 7], vec![8]];
         let tag_size = field_tag_size(1, WireType::LengthDelimited);
 
         let total = count_repeated_bytes(&bytes_list, tag_size);

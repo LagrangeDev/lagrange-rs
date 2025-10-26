@@ -81,6 +81,5 @@ impl<T> Clone for TypedEventReceiver<T> {
 }
 
 impl Drop for EventContext {
-    fn drop(&mut self) {
-    }
+    fn drop(&mut self) {}
 }

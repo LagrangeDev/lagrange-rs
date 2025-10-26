@@ -1,7 +1,4 @@
-use crate::{
-    common::AppInfo,
-    keystore::BotKeystore,
-};
+use crate::{common::AppInfo, keystore::BotKeystore};
 
 /// Base trait for packet struct builders
 /// Provides access to keystore and app info

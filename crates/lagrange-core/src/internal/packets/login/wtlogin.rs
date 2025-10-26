@@ -77,7 +77,13 @@ impl<'a> WtLogin<'a> {
 
         writer.write_bytes(&tlvs.create_bytes());
 
-        self.build_code_2d_packet(0x31, &writer.as_slice(), EncryptMethod::EmEcdhSt, false, false)
+        self.build_code_2d_packet(
+            0x31,
+            writer.as_slice(),
+            EncryptMethod::EmEcdhSt,
+            false,
+            false,
+        )
     }
 
     pub fn build_trans_emp_12(&self) -> Vec<u8> {
@@ -97,7 +103,13 @@ impl<'a> WtLogin<'a> {
         writer.write_str("", Prefix::INT16);
         writer.write(0u16); // tlv count = 0
 
-        self.build_code_2d_packet(0x12, &writer.as_slice(), EncryptMethod::EmEcdhSt, false, false)
+        self.build_code_2d_packet(
+            0x12,
+            writer.as_slice(),
+            EncryptMethod::EmEcdhSt,
+            false,
+            false,
+        )
     }
 
     pub fn build_qrlogin_19(&self, k: &[u8]) -> Vec<u8> {
@@ -126,7 +138,7 @@ impl<'a> WtLogin<'a> {
 
         writer.write_bytes(&tlvs.create_bytes());
 
-        self.build_code_2d_packet(0x13, &writer.as_slice(), EncryptMethod::EmSt, true, true)
+        self.build_code_2d_packet(0x13, writer.as_slice(), EncryptMethod::EmSt, true, true)
     }
 
     pub fn build_qrlogin_20(&self, k: &[u8]) -> Vec<u8> {
@@ -151,7 +163,7 @@ impl<'a> WtLogin<'a> {
 
         writer.write_bytes(&tlvs.create_bytes());
 
-        self.build_code_2d_packet(0x14, &writer.as_slice(), EncryptMethod::EmSt, true, true)
+        self.build_code_2d_packet(0x14, writer.as_slice(), EncryptMethod::EmSt, true, true)
     }
 
     pub fn build_qrlogin_22(&self, k: &[u8]) -> Vec<u8> {
@@ -169,7 +181,7 @@ impl<'a> WtLogin<'a> {
 
         writer.write_bytes(&tlvs.create_bytes());
 
-        self.build_code_2d_packet(0x16, &writer.as_slice(), EncryptMethod::EmSt, true, true)
+        self.build_code_2d_packet(0x16, writer.as_slice(), EncryptMethod::EmSt, true, true)
     }
 
     pub fn build_oicq_09(&self) -> Vec<u8> {
@@ -194,7 +206,13 @@ impl<'a> WtLogin<'a> {
         self.build_packet(0x810, &tlvs.create_bytes(), EncryptMethod::EmEcdhSt, false)
     }
 
-    pub fn build_oicq_09_android(&self, password: &str, energy: &[u8], attach: &[u8], tlv_548_data: &[u8]) -> Vec<u8> {
+    pub fn build_oicq_09_android(
+        &self,
+        password: &str,
+        energy: &[u8],
+        attach: &[u8],
+        tlv_548_data: &[u8],
+    ) -> Vec<u8> {
         let mut tlvs = Tlv::new(0x09, self.keystore, self.app_info);
 
         tlvs.tlv_018_android();
@@ -346,7 +364,10 @@ impl<'a> WtLogin<'a> {
             EncryptMethod::EmEcdh | EncryptMethod::EmEcdhSt => &self.share_key,
             EncryptMethod::EmSt => {
                 if use_wt_session {
-                    self.keystore.sigs.wt_session_ticket_key.as_ref()
+                    self.keystore
+                        .sigs
+                        .wt_session_ticket_key
+                        .as_ref()
                         .unwrap_or(&self.keystore.sigs.random_key)
                 } else {
                     &self.keystore.sigs.random_key
@@ -360,22 +381,24 @@ impl<'a> WtLogin<'a> {
         let mut writer = BinaryPacket::with_capacity(encrypted.len() + 80);
 
         writer.write(2u8); // getRequestEncrptedPackage
-        writer.with_length_prefix::<u16, _, _>(true, 1, |w| {
-            w.write(8001i16); // version
-            w.write(command);
-            w.write(0i16); // sequence
-            w.write(self.keystore.uin.unwrap_or(0) as u32);
-            w.write(3u8);
-            w.write(method as u8);
-            w.write(0u32);
-            w.write(2u8);
-            w.write(0i16); // insId
-            w.write(self.app_info.app_client_version as i32); // insId
-            w.write(0u32); // retryTime
-            self.build_encrypt_head(w, use_wt_session);
-            w.write_bytes(&encrypted);
-            w.write(3u8);
-        }).unwrap();
+        writer
+            .with_length_prefix::<u16, _, _>(true, 1, |w| {
+                w.write(8001i16); // version
+                w.write(command);
+                w.write(0i16); // sequence
+                w.write(self.keystore.uin.unwrap_or(0) as u32);
+                w.write(3u8);
+                w.write(method as u8);
+                w.write(0u32);
+                w.write(2u8);
+                w.write(0i16); // insId
+                w.write(self.app_info.app_client_version as i32); // insId
+                w.write(0u32); // retryTime
+                self.build_encrypt_head(w, use_wt_session);
+                w.write_bytes(&encrypted);
+                w.write(3u8);
+            })
+            .unwrap();
 
         writer.to_vec()
     }
@@ -392,20 +415,26 @@ impl<'a> WtLogin<'a> {
         req_body.write(Self::unix_timestamp() as u32);
 
         req_body.write(2u8); // encryptMethod == EncryptMethod.EM_ST || encryptMethod == EncryptMethod.EM_ECDH_ST | Section of length 43 + tlv.Length + 1
-        req_body.with_length_prefix::<u16, _, _>(true, 1, |w| {
-            w.write(command);
-            w.skip(21);
-            w.write(3u8); // flag, 4 for oidb_func, 1 for register, 3 for code_2d, 2 for name_func, 5 for devlock
-            w.write(0x00i16); // close
-            w.write(0x32i16); // Version Code: 50
-            w.write(0u32); // trans_emp sequence
-            w.write(self.keystore.uin.unwrap_or(0)); // dummy uin
-            w.write_bytes(tlv);
-            w.write(3u8); // oicq.wlogin_sdk.code2d.c.get_request
-        }).unwrap();
+        req_body
+            .with_length_prefix::<u16, _, _>(true, 1, |w| {
+                w.write(command);
+                w.skip(21);
+                w.write(3u8); // flag, 4 for oidb_func, 1 for register, 3 for code_2d, 2 for name_func, 5 for devlock
+                w.write(0x00i16); // close
+                w.write(0x32i16); // Version Code: 50
+                w.write(0u32); // trans_emp sequence
+                w.write(self.keystore.uin.unwrap_or(0)); // dummy uin
+                w.write_bytes(tlv);
+                w.write(3u8); // oicq.wlogin_sdk.code2d.c.get_request
+            })
+            .unwrap();
 
         let req_span = if encrypt {
-            let st_key = self.keystore.sigs.st_key.as_ref()
+            let st_key = self
+                .keystore
+                .sigs
+                .st_key
+                .as_ref()
                 .unwrap_or(&self.keystore.sigs.random_key);
             let key_array: [u8; 16] = st_key[..16].try_into().unwrap();
             TeaProvider::encrypt(req_body.as_slice(), &key_array)
@@ -432,7 +461,7 @@ impl<'a> WtLogin<'a> {
         writer.write_str("", Prefix::INT8); // rollback
         writer.write_bytes(&req_span); // oicq.wlogin_sdk.request.d0
 
-        self.build_packet(0x812, &writer.as_slice(), method, use_wt_session)
+        self.build_packet(0x812, writer.as_slice(), method, use_wt_session)
     }
 
     fn build_encrypt_head(&self, writer: &mut BinaryPacket, use_wt_session: bool) {
@@ -462,10 +491,14 @@ impl<'a> WtLogin<'a> {
         let _length = reader.read::<u16>().map_err(|_| "Failed to read length")?;
         let _version = reader.read::<u16>().map_err(|_| "Failed to read version")?;
         let command = reader.read::<u16>().map_err(|_| "Failed to read command")?;
-        let _sequence = reader.read::<u16>().map_err(|_| "Failed to read sequence")?;
+        let _sequence = reader
+            .read::<u16>()
+            .map_err(|_| "Failed to read sequence")?;
         let _uin = reader.read::<u32>().map_err(|_| "Failed to read uin")?;
         let _flag = reader.read::<u8>().map_err(|_| "Failed to read flag")?;
-        let encrypt_type = reader.read::<u8>().map_err(|_| "Failed to read encrypt type")?;
+        let encrypt_type = reader
+            .read::<u8>()
+            .map_err(|_| "Failed to read encrypt type")?;
         let state = reader.read::<u8>().map_err(|_| "Failed to read state")?;
 
         let remaining = reader.remaining();
@@ -473,7 +506,9 @@ impl<'a> WtLogin<'a> {
             return Err("No encrypted data");
         }
 
-        let encrypted = &reader.read_bytes(remaining - 1).map_err(|_| "Failed to read encrypted data")?;
+        let encrypted = &reader
+            .read_bytes(remaining - 1)
+            .map_err(|_| "Failed to read encrypted data")?;
 
         let key = match encrypt_type {
             0 => {
@@ -483,10 +518,12 @@ impl<'a> WtLogin<'a> {
                     &self.share_key
                 }
             }
-            3 => {
-                self.keystore.sigs.wt_session_ticket_key.as_ref()
-                    .unwrap_or(&self.keystore.sigs.random_key)
-            }
+            3 => self
+                .keystore
+                .sigs
+                .wt_session_ticket_key
+                .as_ref()
+                .unwrap_or(&self.keystore.sigs.random_key),
             4 => {
                 // TODO: Handle type 4 with ECDH key exchange
                 &self.share_key
@@ -495,8 +532,8 @@ impl<'a> WtLogin<'a> {
         };
 
         let key_array: [u8; 16] = key[..16].try_into().map_err(|_| "Invalid key length")?;
-        let decrypted = TeaProvider::decrypt(encrypted, &key_array)
-            .map_err(|_| "Failed to decrypt")?;
+        let decrypted =
+            TeaProvider::decrypt(encrypted, &key_array).map_err(|_| "Failed to decrypt")?;
 
         Ok((command, decrypted))
     }
@@ -512,7 +549,11 @@ impl<'a> WtLogin<'a> {
         let span = if encrypt == 0 {
             &input[5..5 + layer as usize]
         } else {
-            let st_key = self.keystore.sigs.st_key.as_ref()
+            let st_key = self
+                .keystore
+                .sigs
+                .st_key
+                .as_ref()
                 .unwrap_or(&self.keystore.sigs.random_key);
             let key_array: [u8; 16] = st_key[..16].try_into().unwrap();
             &TeaProvider::decrypt(&input[5..5 + layer as usize], &key_array)
@@ -526,9 +567,13 @@ impl<'a> WtLogin<'a> {
         let command = reader.read::<u16>().map_err(|_| "Failed to read command")?;
         reader.skip(21);
         let _flag = reader.read::<u8>().map_err(|_| "Failed to read flag")?;
-        let _retry_time = reader.read::<u16>().map_err(|_| "Failed to read retry_time")?;
+        let _retry_time = reader
+            .read::<u16>()
+            .map_err(|_| "Failed to read retry_time")?;
         let _version = reader.read::<u16>().map_err(|_| "Failed to read version")?;
-        let _sequence = reader.read::<u32>().map_err(|_| "Failed to read sequence")?;
+        let _sequence = reader
+            .read::<u32>()
+            .map_err(|_| "Failed to read sequence")?;
         let _uin = reader.read::<i64>().map_err(|_| "Failed to read uin")?;
 
         Ok((command, reader.read_remaining().to_vec()))

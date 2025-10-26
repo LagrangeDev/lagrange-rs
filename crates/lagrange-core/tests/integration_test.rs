@@ -1,10 +1,6 @@
-use lagrange_core::{
-    config::BotConfig,
-    keystore::BotKeystore,
-    BotContext, Protocols,
-};
 use bytes::Bytes;
 use lagrange_core::internal::services::LoginEvent;
+use lagrange_core::{config::BotConfig, keystore::BotKeystore, BotContext, Protocols};
 
 #[tokio::test]
 async fn test_bot_context_creation() {
@@ -29,11 +25,12 @@ async fn test_bot_context_creation() {
 async fn test_cache_context() {
     let bot = BotContext::builder().build();
 
-    bot.cache.cache_friends(vec![lagrange_core::internal::context::cache::Friend {
-        uin: 123,
-        uid: "user123".to_string(),
-        nickname: "Test User".to_string(),
-    }]);
+    bot.cache
+        .cache_friends(vec![lagrange_core::internal::context::cache::Friend {
+            uin: 123,
+            uid: "user123".to_string(),
+            nickname: "Test User".to_string(),
+        }]);
 
     assert_eq!(bot.cache.resolve_uid(123), Some("user123".to_string()));
     assert_eq!(bot.cache.resolve_uin("user123"), Some(123));
@@ -147,11 +144,7 @@ async fn test_service_registration() {
     let bot = BotContext::builder().build();
 
     // Create test packets with commands that should be registered
-    let login_packet = SsoPacket::new(
-        1,
-        "wtlogin.login".to_string(),
-        Bytes::from("test_data"),
-    );
+    let login_packet = SsoPacket::new(1, "wtlogin.login".to_string(), Bytes::from("test_data"));
 
     let message_packet = SsoPacket::new(
         2,
@@ -160,10 +153,22 @@ async fn test_service_registration() {
     );
 
     // These should not fail with ServiceNotFound because the services are registered via macro
-    let login_result = bot.service.resolve_incoming(&login_packet, bot.clone()).await;
-    let message_result = bot.service.resolve_incoming(&message_packet, bot.clone()).await;
+    let login_result = bot
+        .service
+        .resolve_incoming(&login_packet, bot.clone())
+        .await;
+    let message_result = bot
+        .service
+        .resolve_incoming(&message_packet, bot.clone())
+        .await;
 
     // Verify that services were found and parsed
-    assert!(login_result.is_ok(), "LoginService should be registered via #[service] macro");
-    assert!(message_result.is_ok(), "SendMessageService should be registered via #[service] macro");
+    assert!(
+        login_result.is_ok(),
+        "LoginService should be registered via #[service] macro"
+    );
+    assert!(
+        message_result.is_ok(),
+        "SendMessageService should be registered via #[service] macro"
+    );
 }

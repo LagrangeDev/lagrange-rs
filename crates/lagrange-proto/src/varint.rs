@@ -1,15 +1,14 @@
-
-pub mod num;
-pub mod encode;
 pub mod decode;
+pub mod encode;
+pub mod num;
 
 pub const MAX_VARINT_LEN_U8: usize = 2;
 pub const MAX_VARINT_LEN_U16: usize = 3;
 pub const MAX_VARINT_LEN_U32: usize = 5;
 pub const MAX_VARINT_LEN_U64: usize = 10;
 
-pub use encode::{encode, encode_to_slice, encode_zigzag};
 pub use decode::{decode, decode_len, decode_zigzag};
+pub use encode::{encode, encode_to_slice, encode_zigzag};
 
 #[inline(always)]
 pub const fn zigzag_encode_i32(value: i32) -> u32 {
@@ -90,5 +89,4 @@ mod tests {
             assert_eq!(dec_len, len);
         }
     }
-
 }

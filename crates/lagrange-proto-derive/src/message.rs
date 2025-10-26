@@ -1,10 +1,9 @@
-
 use crate::attributes::{ProtoFieldAttrs, ProtoMessageAttrs};
 use proc_macro2::TokenStream;
 use quote::quote;
 use syn::{
-    Data, DeriveInput, Fields, Result, Error,
-    FieldsNamed, Field, Type, PathArguments, GenericArgument,
+    Data, DeriveInput, Error, Field, Fields, FieldsNamed, GenericArgument, PathArguments, Result,
+    Type,
 };
 
 struct FieldInfo {
@@ -101,16 +100,29 @@ fn can_be_packed(ty: &Type) -> bool {
 
     matches!(
         type_str,
-        "u32" | "u64" | "i32" | "i64" | "bool" | "f32" | "f64"
-            | "SInt32" | "SInt64" | "Fixed32" | "Fixed64" | "SFixed32" | "SFixed64"
-            | ":: lagrange_proto :: SInt32" | ":: lagrange_proto :: SInt64"
-            | ":: lagrange_proto :: Fixed32" | ":: lagrange_proto :: Fixed64"
-            | ":: lagrange_proto :: SFixed32" | ":: lagrange_proto :: SFixed64"
+        "u32"
+            | "u64"
+            | "i32"
+            | "i64"
+            | "bool"
+            | "f32"
+            | "f64"
+            | "SInt32"
+            | "SInt64"
+            | "Fixed32"
+            | "Fixed64"
+            | "SFixed32"
+            | "SFixed64"
+            | ":: lagrange_proto :: SInt32"
+            | ":: lagrange_proto :: SInt64"
+            | ":: lagrange_proto :: Fixed32"
+            | ":: lagrange_proto :: Fixed64"
+            | ":: lagrange_proto :: SFixed32"
+            | ":: lagrange_proto :: SFixed64"
     )
 }
 
 fn wire_type_for_type(ty: &Type) -> TokenStream {
-    
     let inner_type = if is_option(ty) || is_vec(ty) {
         extract_inner_type(ty)
     } else {
@@ -122,34 +134,37 @@ fn wire_type_for_type(ty: &Type) -> TokenStream {
     let actual_type_str = actual_type_str.trim();
 
     match actual_type_str {
-        
         "u32" | "u64" | "i32" | "i64" | "bool" => {
             quote! { ::lagrange_proto::wire::WireType::Varint }
         }
-        
+
         "SInt32" | "SInt64" | ":: lagrange_proto :: SInt32" | ":: lagrange_proto :: SInt64" => {
             quote! { ::lagrange_proto::wire::WireType::Varint }
         }
-        
-        "f32" | "Fixed32" | "SFixed32" |
-        ":: lagrange_proto :: Fixed32" | ":: lagrange_proto :: SFixed32" => {
+
+        "f32"
+        | "Fixed32"
+        | "SFixed32"
+        | ":: lagrange_proto :: Fixed32"
+        | ":: lagrange_proto :: SFixed32" => {
             quote! { ::lagrange_proto::wire::WireType::Fixed32 }
         }
-        
-        "f64" | "Fixed64" | "SFixed64" |
-        ":: lagrange_proto :: Fixed64" | ":: lagrange_proto :: SFixed64" => {
+
+        "f64"
+        | "Fixed64"
+        | "SFixed64"
+        | ":: lagrange_proto :: Fixed64"
+        | ":: lagrange_proto :: SFixed64" => {
             quote! { ::lagrange_proto::wire::WireType::Fixed64 }
         }
-        
+
         "String" => {
             quote! { ::lagrange_proto::wire::WireType::LengthDelimited }
         }
         _ => {
-            
             if actual_type_str.contains("::") {
                 quote! { ::lagrange_proto::wire::WireType::LengthDelimited }
             } else {
-                
                 quote! { ::lagrange_proto::wire::WireType::Varint }
             }
         }
@@ -162,7 +177,6 @@ fn generate_field_encode(field: &FieldInfo) -> TokenStream {
     let wire_type = wire_type_for_type(&field.ty);
 
     if field.is_oneof {
-        
         return quote! {
             if let Some(ref value) = self.#name {
                 value.encode(buf)?;
@@ -171,14 +185,13 @@ fn generate_field_encode(field: &FieldInfo) -> TokenStream {
     }
 
     if field.is_map {
-        
         if let Some((key_ty, val_ty)) = extract_map_types(&field.ty) {
             let key_wire_type = wire_type_for_type(&key_ty);
             let val_wire_type = wire_type_for_type(&val_ty);
 
             return quote! {
                 for (k, v) in &self.#name {
-                    
+
                     let mut entry_size = 0usize;
 
                     let key_field_key = ::lagrange_proto::wire::encode_key(1, #key_wire_type);
@@ -221,13 +234,11 @@ fn generate_field_encode(field: &FieldInfo) -> TokenStream {
     }
 
     if field.is_repeated {
-        
         let inner_ty = extract_inner_type(&field.ty).unwrap_or_else(|| field.ty.clone());
         if field.attrs.packed && can_be_packed(&inner_ty) {
-            
             quote! {
                 if !self.#name.is_empty() {
-                    
+
                     let mut packed_size = 0usize;
                     for item in &self.#name {
                         packed_size += item.encoded_size();
@@ -252,7 +263,6 @@ fn generate_field_encode(field: &FieldInfo) -> TokenStream {
                 }
             }
         } else {
-            
             quote! {
                 for item in &self.#name {
                     let key = ::lagrange_proto::wire::encode_key(#tag, #wire_type);
@@ -266,7 +276,6 @@ fn generate_field_encode(field: &FieldInfo) -> TokenStream {
             }
         }
     } else if field.is_optional {
-        
         quote! {
             if let Some(ref value) = self.#name {
                 let key = ::lagrange_proto::wire::encode_key(#tag, #wire_type);
@@ -279,7 +288,6 @@ fn generate_field_encode(field: &FieldInfo) -> TokenStream {
             }
         }
     } else {
-        
         quote! {
             let key = ::lagrange_proto::wire::encode_key(#tag, #wire_type);
             {
@@ -306,14 +314,13 @@ fn generate_field_size(field: &FieldInfo) -> TokenStream {
     }
 
     if field.is_map {
-        
         if let Some((key_ty, val_ty)) = extract_map_types(&field.ty) {
             let key_wire_type = wire_type_for_type(&key_ty);
             let val_wire_type = wire_type_for_type(&val_ty);
 
             return quote! {
                 for (k, v) in &self.#name {
-                    
+
                     let entry_tag = ::lagrange_proto::wire::encode_key(#tag, ::lagrange_proto::wire::WireType::LengthDelimited);
                     size += ::lagrange_proto::helpers::get_varint_length_u32(entry_tag);
 
@@ -337,7 +344,6 @@ fn generate_field_size(field: &FieldInfo) -> TokenStream {
     if field.is_repeated {
         let inner_ty = extract_inner_type(&field.ty).unwrap_or_else(|| field.ty.clone());
         if field.attrs.packed && can_be_packed(&inner_ty) {
-            
             quote! {
                 if !self.#name.is_empty() {
                     let key = ::lagrange_proto::wire::encode_key(#tag, ::lagrange_proto::wire::WireType::LengthDelimited);
@@ -353,7 +359,6 @@ fn generate_field_size(field: &FieldInfo) -> TokenStream {
                 }
             }
         } else {
-            
             quote! {
                 for item in &self.#name {
                     let key = ::lagrange_proto::wire::encode_key(#tag, #wire_type);
@@ -394,7 +399,7 @@ fn generate_decode_value(ty: &Type) -> TokenStream {
                     value
                 }
             }
-        },
+        }
         "i64" => {
             quote! {
                 {
@@ -403,7 +408,7 @@ fn generate_decode_value(ty: &Type) -> TokenStream {
                     value
                 }
             }
-        },
+        }
         "bool" => {
             quote! {
                 {
@@ -412,7 +417,7 @@ fn generate_decode_value(ty: &Type) -> TokenStream {
                     value != 0
                 }
             }
-        },
+        }
         "f32" => quote! { f32::from_bits(reader.read_fixed32()?) },
         "f64" => quote! { f64::from_bits(reader.read_fixed64()?) },
 
@@ -424,7 +429,7 @@ fn generate_decode_value(ty: &Type) -> TokenStream {
                     ::lagrange_proto::SInt32(value)
                 }
             }
-        },
+        }
         "SInt64" | ":: lagrange_proto :: SInt64" => {
             quote! {
                 {
@@ -433,13 +438,13 @@ fn generate_decode_value(ty: &Type) -> TokenStream {
                     ::lagrange_proto::SInt64(value)
                 }
             }
-        },
+        }
         "Fixed32" | ":: lagrange_proto :: Fixed32" => {
             quote! { ::lagrange_proto::Fixed32(reader.read_fixed32()?) }
-        },
+        }
         "Fixed64" | ":: lagrange_proto :: Fixed64" => {
             quote! { ::lagrange_proto::Fixed64(reader.read_fixed64()?) }
-        },
+        }
         "SFixed32" | ":: lagrange_proto :: SFixed32" => {
             quote! {
                 {
@@ -447,7 +452,7 @@ fn generate_decode_value(ty: &Type) -> TokenStream {
                     ::lagrange_proto::SFixed32(value as i32)
                 }
             }
-        },
+        }
         "SFixed64" | ":: lagrange_proto :: SFixed64" => {
             quote! {
                 {
@@ -455,7 +460,7 @@ fn generate_decode_value(ty: &Type) -> TokenStream {
                     ::lagrange_proto::SFixed64(value as i64)
                 }
             }
-        },
+        }
 
         "String" => {
             quote! {
@@ -464,12 +469,11 @@ fn generate_decode_value(ty: &Type) -> TokenStream {
                     String::from_utf8(data).map_err(::lagrange_proto::DecodeError::InvalidUtf8)?
                 }
             }
-        },
+        }
         "Vec < u8 >" | "Vec<u8>" => {
             quote! { reader.read_length_delimited()? }
-        },
+        }
         _ => {
-            
             quote! {
                 {
                     let data = reader.read_length_delimited()?;
@@ -492,7 +496,6 @@ fn generate_varint_decode(ty: &Type) -> TokenStream {
 }
 
 fn generate_field_decode(fields: &[FieldInfo], preserve_unknown: bool) -> TokenStream {
-    
     let (oneof_fields, regular_fields): (Vec<_>, Vec<_>) = fields.iter().partition(|f| f.is_oneof);
 
     let field_matches = regular_fields.iter().map(|field| {
@@ -506,7 +509,7 @@ fn generate_field_decode(fields: &[FieldInfo], preserve_unknown: bool) -> TokenS
 
                 return quote! {
                     #tag => {
-                        
+
                         let entry_data = reader.read_length_delimited()?;
                         let mut entry_reader = ::lagrange_proto::decoding::FieldReader::new(&entry_data);
 
@@ -517,17 +520,17 @@ fn generate_field_decode(fields: &[FieldInfo], preserve_unknown: bool) -> TokenS
                             let (entry_tag, entry_wire_type) = entry_reader.read_field_key()?;
                             match entry_tag {
                                 1 => {
-                                    
+
                                     let reader = &mut entry_reader;
                                     key = Some(#key_decode);
                                 }
                                 2 => {
-                                    
+
                                     let reader = &mut entry_reader;
                                     value = Some(#val_decode);
                                 }
                                 _ => {
-                                    
+
                                     entry_reader.skip_field(entry_wire_type)?;
                                 }
                             }
@@ -550,31 +553,31 @@ fn generate_field_decode(fields: &[FieldInfo], preserve_unknown: bool) -> TokenS
         let decode_value = generate_decode_value(&decode_ty);
 
         if field.is_repeated {
-            
+
             if field.attrs.packed && can_be_packed(&decode_ty) {
-                
+
                 quote! {
                     #tag => {
-                        
+
                         if wire_type == ::lagrange_proto::wire::WireType::LengthDelimited {
-                            
+
                             let data = reader.read_length_delimited()?;
                             let mut packed_reader = ::lagrange_proto::decoding::FieldReader::new(&data);
                             while packed_reader.has_remaining() {
-                                
+
                                 let reader = &mut packed_reader;
                                 let value = #decode_value;
                                 result.#name.push(value);
                             }
                         } else {
-                            
+
                             let value = #decode_value;
                             result.#name.push(value);
                         }
                     }
                 }
             } else {
-                
+
                 quote! {
                     #tag => {
                         let value = #decode_value;
@@ -583,7 +586,7 @@ fn generate_field_decode(fields: &[FieldInfo], preserve_unknown: bool) -> TokenS
                 }
             }
         } else if field.is_optional {
-            
+
             let type_str = quote!(#decode_ty).to_string();
             let type_str_trimmed = type_str.trim();
 
@@ -598,7 +601,7 @@ fn generate_field_decode(fields: &[FieldInfo], preserve_unknown: bool) -> TokenS
             );
 
             if !is_known_primitive {
-                
+
                 let varint_decode = generate_varint_decode(&decode_ty);
                 quote! {
                     #tag => {
@@ -619,7 +622,7 @@ fn generate_field_decode(fields: &[FieldInfo], preserve_unknown: bool) -> TokenS
                 }
             }
         } else {
-            
+
             let type_str = quote!(#decode_ty).to_string();
             let type_str_trimmed = type_str.trim();
 
@@ -634,14 +637,14 @@ fn generate_field_decode(fields: &[FieldInfo], preserve_unknown: bool) -> TokenS
             );
 
             if !is_known_primitive {
-                
+
                 let varint_decode = generate_varint_decode(&decode_ty);
                 quote! {
                     #tag => {
                         if wire_type == ::lagrange_proto::wire::WireType::Varint {
                             result.#name = #varint_decode;
                         } else {
-                            
+
                             result.#name = #decode_value;
                         }
                     }
@@ -658,7 +661,7 @@ fn generate_field_decode(fields: &[FieldInfo], preserve_unknown: bool) -> TokenS
 
     let oneof_handlers = oneof_fields.iter().map(|field| {
         let name = &field.name;
-        
+
         let oneof_ty = if field.is_optional {
             extract_inner_type(&field.ty).unwrap_or_else(|| field.ty.clone())
         } else {
@@ -675,7 +678,7 @@ fn generate_field_decode(fields: &[FieldInfo], preserve_unknown: bool) -> TokenS
 
     let unknown_handler = if preserve_unknown {
         quote! {
-            
+
             if !oneof_handled {
                 let data = reader.read_field_data(wire_type)?;
                 result._unknown_fields.add(tag, wire_type, data);
@@ -683,7 +686,7 @@ fn generate_field_decode(fields: &[FieldInfo], preserve_unknown: bool) -> TokenS
         }
     } else {
         quote! {
-            
+
             if !oneof_handled {
                 reader.skip_field(wire_type)?;
             }
@@ -695,7 +698,7 @@ fn generate_field_decode(fields: &[FieldInfo], preserve_unknown: bool) -> TokenS
         match tag {
             #(#field_matches)*
             _ => {
-                
+
                 #(#oneof_handlers)*
 
                 #unknown_handler
@@ -709,16 +712,12 @@ fn generate_default_init(fields: &[FieldInfo], preserve_unknown: bool) -> TokenS
         let name = &field.name;
 
         if let Some(ref default_val) = field.attrs.default {
-            
             let default_expr = parse_default_value(&field.ty, default_val);
             quote! { #name: #default_expr }
         } else if field.is_optional {
             quote! { #name: None }
         } else if field.is_repeated {
             quote! { #name: Vec::new() }
-        } else if field.is_map {
-            
-            quote! { #name: Default::default() }
         } else {
             quote! { #name: Default::default() }
         }
@@ -742,7 +741,6 @@ fn parse_default_value(ty: &Type, default_str: &str) -> TokenStream {
 
     match type_str {
         "u32" | "u64" | "i32" | "i64" | "usize" | "isize" => {
-            
             if let Ok(num) = default_str.parse::<i64>() {
                 quote! { #num as #ty }
             } else {
@@ -750,23 +748,18 @@ fn parse_default_value(ty: &Type, default_str: &str) -> TokenStream {
             }
         }
         "f32" | "f64" => {
-            
             if let Ok(num) = default_str.parse::<f64>() {
                 quote! { #num as #ty }
             } else {
                 quote! { Default::default() }
             }
         }
-        "bool" => {
-            
-            match default_str {
-                "true" => quote! { true },
-                "false" => quote! { false },
-                _ => quote! { Default::default() },
-            }
-        }
+        "bool" => match default_str {
+            "true" => quote! { true },
+            "false" => quote! { false },
+            _ => quote! { Default::default() },
+        },
         "String" => {
-            
             quote! { #default_str.to_string() }
         }
         "SInt32" | ":: lagrange_proto :: SInt32" => {
@@ -812,7 +805,6 @@ fn parse_default_value(ty: &Type, default_str: &str) -> TokenStream {
             }
         }
         _ => {
-            
             let ident = syn::Ident::new(default_str, proc_macro2::Span::call_site());
             quote! { #ty::#ident }
         }
@@ -843,7 +835,10 @@ pub fn expand_derive_proto_message(input: DeriveInput) -> Result<TokenStream> {
     };
 
     let has_unknown_fields = fields.iter().any(|f| {
-        f.ident.as_ref().map(|id| id == "_unknown_fields").unwrap_or(false)
+        f.ident
+            .as_ref()
+            .map(|id| id == "_unknown_fields")
+            .unwrap_or(false)
     });
 
     if msg_attrs.preserve_unknown && !has_unknown_fields {
@@ -863,7 +858,7 @@ pub fn expand_derive_proto_message(input: DeriveInput) -> Result<TokenStream> {
 
         let attrs = extract_field_attrs(field)?;
         let is_oneof = attrs.oneof.is_some();
-        let tag = if is_oneof { 0 } else { attrs.tag.unwrap() }; 
+        let tag = if is_oneof { 0 } else { attrs.tag.unwrap() };
         let ty = field.ty.clone();
         let is_optional = is_option(&ty);
         let is_repeated = is_vec(&ty);

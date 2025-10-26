@@ -1,5 +1,5 @@
-use std::io::{Read, Seek, SeekFrom};
 use super::sha1_stream::Sha1Stream;
+use std::io::{Read, Seek, SeekFrom};
 
 const SAMPLE_SIZE: usize = 10 * 1024 * 1024; // 10MB
 const THRESHOLD: u64 = 30 * 1024 * 1024; // 30MB

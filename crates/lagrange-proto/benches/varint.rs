@@ -1,15 +1,20 @@
-
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
-use lagrange_proto::{varint, helpers};
+use lagrange_proto::{helpers, varint};
 
 fn generate_test_values() -> Vec<u32> {
     vec![
-        
-        0, 1, 42, 127,
-        
-        128, 255, 1000, 16383,
-        
-        16384, 100000, 1000000, u32::MAX,
+        0,
+        1,
+        42,
+        127,
+        128,
+        255,
+        1000,
+        16383,
+        16384,
+        100000,
+        1000000,
+        u32::MAX,
     ]
 }
 
@@ -38,7 +43,10 @@ fn bench_encode_single_u32(c: &mut Criterion) {
             |b, &val| {
                 let mut buf = [0u8; 5];
                 b.iter(|| {
-                    let len = <u32 as lagrange_proto::varint::num::VarIntTarget>::encode_varint(black_box(val), &mut buf);
+                    let len = <u32 as lagrange_proto::varint::num::VarIntTarget>::encode_varint(
+                        black_box(val),
+                        &mut buf,
+                    );
                     black_box(len);
                 });
             },
@@ -87,7 +95,10 @@ fn bench_encode_single_u64(c: &mut Criterion) {
             |b, &val| {
                 let mut buf = [0u8; 10];
                 b.iter(|| {
-                    let len = <u64 as lagrange_proto::varint::num::VarIntTarget>::encode_varint(black_box(val), &mut buf);
+                    let len = <u64 as lagrange_proto::varint::num::VarIntTarget>::encode_varint(
+                        black_box(val),
+                        &mut buf,
+                    );
                     black_box(len);
                 });
             },
@@ -133,7 +144,11 @@ fn bench_decode_single_u32(c: &mut Criterion) {
             &encoded,
             |b, buf| {
                 b.iter(|| {
-                    let (val, len) = <u32 as lagrange_proto::varint::num::VarIntTarget>::decode_varint(black_box(&buf[..])).unwrap();
+                    let (val, len) =
+                        <u32 as lagrange_proto::varint::num::VarIntTarget>::decode_varint(
+                            black_box(&buf[..]),
+                        )
+                        .unwrap();
                     black_box((val, len));
                 });
             },
@@ -144,7 +159,8 @@ fn bench_decode_single_u32(c: &mut Criterion) {
             &encoded,
             |b, buf| {
                 b.iter(|| {
-                    let (val, len) = varint::decode::simd::decode_simd::<u32>(black_box(&buf[..])).unwrap();
+                    let (val, len) =
+                        varint::decode::simd::decode_simd::<u32>(black_box(&buf[..])).unwrap();
                     black_box((val, len));
                 });
             },
@@ -160,28 +176,20 @@ fn bench_zigzag_encoding(c: &mut Criterion) {
     let test_values = vec![0i32, -1, 1, -127, 127, -1000, 1000, i32::MIN, i32::MAX];
 
     for value in test_values {
-        group.bench_with_input(
-            BenchmarkId::new("encode", value),
-            &value,
-            |b, &val| {
-                b.iter(|| {
-                    let (buf, len) = varint::encode_zigzag::<u32>(black_box(val));
-                    black_box((buf, len));
-                });
-            },
-        );
+        group.bench_with_input(BenchmarkId::new("encode", value), &value, |b, &val| {
+            b.iter(|| {
+                let (buf, len) = varint::encode_zigzag::<u32>(black_box(val));
+                black_box((buf, len));
+            });
+        });
 
         let (encoded, _len) = varint::encode_zigzag::<u32>(value);
-        group.bench_with_input(
-            BenchmarkId::new("decode", value),
-            &encoded,
-            |b, buf| {
-                b.iter(|| {
-                    let (val, len) = varint::decode_zigzag::<u32>(black_box(&buf[..])).unwrap();
-                    black_box((val, len));
-                });
-            },
-        );
+        group.bench_with_input(BenchmarkId::new("decode", value), &encoded, |b, buf| {
+            b.iter(|| {
+                let (val, len) = varint::decode_zigzag::<u32>(black_box(&buf[..])).unwrap();
+                black_box((val, len));
+            });
+        });
     }
 
     group.finish();
@@ -190,7 +198,7 @@ fn bench_zigzag_encoding(c: &mut Criterion) {
 fn bench_protobuf_simulation(c: &mut Criterion) {
     let mut group = c.benchmark_group("protobuf_simulation");
 
-    let field_tags: Vec<u32> = (1..100).collect(); 
+    let field_tags: Vec<u32> = (1..100).collect();
 
     let mut message = Vec::new();
     for tag in &field_tags {
@@ -256,12 +264,14 @@ fn bench_dispatch_overhead_encode(c: &mut Criterion) {
             |b, &val| {
                 let mut buf = [0u8; 5];
                 b.iter(|| {
-                    let len = <u32 as lagrange_proto::varint::num::VarIntTarget>::encode_varint(black_box(val), &mut buf);
+                    let len = <u32 as lagrange_proto::varint::num::VarIntTarget>::encode_varint(
+                        black_box(val),
+                        &mut buf,
+                    );
                     black_box(len);
                 });
             },
         );
-
     }
 
     group.finish();
@@ -294,12 +304,15 @@ fn bench_dispatch_overhead_decode(c: &mut Criterion) {
             &encoded,
             |b, buf| {
                 b.iter(|| {
-                    let (val, len) = <u32 as lagrange_proto::varint::num::VarIntTarget>::decode_varint(black_box(&buf[..])).unwrap();
+                    let (val, len) =
+                        <u32 as lagrange_proto::varint::num::VarIntTarget>::decode_varint(
+                            black_box(&buf[..]),
+                        )
+                        .unwrap();
                     black_box((val, len));
                 });
             },
         );
-
     }
 
     group.finish();
@@ -309,7 +322,7 @@ fn bench_dispatch_overhead_decode(c: &mut Criterion) {
 fn bench_dispatch_mechanism_cost(c: &mut Criterion) {
     let mut group = c.benchmark_group("dispatch_mechanism_cost");
 
-    let value = 127u32; 
+    let value = 127u32;
     group.throughput(Throughput::Elements(1));
 
     group.bench_function("encode_with_dispatch", |b| {
@@ -323,7 +336,10 @@ fn bench_dispatch_mechanism_cost(c: &mut Criterion) {
     group.bench_function("encode_without_dispatch", |b| {
         let mut buf = [0u8; 5];
         b.iter(|| {
-            let len = <u32 as lagrange_proto::varint::num::VarIntTarget>::encode_varint(black_box(value), &mut buf);
+            let len = <u32 as lagrange_proto::varint::num::VarIntTarget>::encode_varint(
+                black_box(value),
+                &mut buf,
+            );
             black_box(len);
         });
     });
@@ -339,7 +355,10 @@ fn bench_dispatch_mechanism_cost(c: &mut Criterion) {
 
     group.bench_function("decode_without_dispatch", |b| {
         b.iter(|| {
-            let (val, len) = <u32 as lagrange_proto::varint::num::VarIntTarget>::decode_varint(black_box(&encoded[..])).unwrap();
+            let (val, len) = <u32 as lagrange_proto::varint::num::VarIntTarget>::decode_varint(
+                black_box(&encoded[..]),
+            )
+            .unwrap();
             black_box((val, len));
         });
     });

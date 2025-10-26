@@ -60,10 +60,7 @@ impl Parse for ServiceArgs {
         }
 
         let command = command.ok_or_else(|| {
-            syn::Error::new(
-                input.span(),
-                "services macro requires 'command' attribute",
-            )
+            syn::Error::new(input.span(), "services macro requires 'command' attribute")
         })?;
 
         Ok(ServiceArgs {

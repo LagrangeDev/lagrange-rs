@@ -1,18 +1,17 @@
-
 use lagrange_proto::varint::*;
 
 #[test]
 fn test_varint_u8_all_boundaries() {
     // Test every boundary for u8 varint encoding
     let test_cases = vec![
-        (0u8, 1),      // Min value, 1 byte
+        (0u8, 1), // Min value, 1 byte
         (1, 1),
         (126, 1),
-        (127, 1),      // Max 1-byte value
-        (128, 2),      // Min 2-byte value
+        (127, 1), // Max 1-byte value
+        (128, 2), // Min 2-byte value
         (129, 2),
         (254, 2),
-        (255, 2),      // Max value, 2 bytes
+        (255, 2), // Max value, 2 bytes
     ];
 
     for (value, expected_len) in test_cases {
@@ -33,17 +32,21 @@ fn test_varint_u16_all_boundaries() {
         (128, 2),
         (255, 2),
         (256, 2),
-        (16383, 2),      // Max 2-byte
-        (16384, 3),      // Min 3-byte
+        (16383, 2), // Max 2-byte
+        (16384, 3), // Min 3-byte
         (32767, 3),
         (32768, 3),
         (65534, 3),
-        (65535, 3),      // Max value
+        (65535, 3), // Max value
     ];
 
     for (value, expected_len) in test_cases {
         let (buf, len) = encode(value);
-        assert_eq!(len, expected_len, "Incorrect length for u16 value {}", value);
+        assert_eq!(
+            len, expected_len,
+            "Incorrect length for u16 value {}",
+            value
+        );
 
         let (decoded, dec_len) = decode::<u16>(&buf[..len]).unwrap();
         assert_eq!(decoded, value);
@@ -81,15 +84,19 @@ fn test_varint_u32_exhaustive_boundaries() {
         (268435456, 5),
         (268435457, 5),
         (1073741824, 5),
-        (2147483647, 5),  // i32::MAX
+        (2147483647, 5), // i32::MAX
         (2147483648, 5),
         (4294967294, 5),
-        (4294967295, 5),  // u32::MAX
+        (4294967295, 5), // u32::MAX
     ];
 
     for (value, expected_len) in test_cases {
         let (buf, len) = encode(value);
-        assert_eq!(len, expected_len, "Incorrect length for u32 value {}", value);
+        assert_eq!(
+            len, expected_len,
+            "Incorrect length for u32 value {}",
+            value
+        );
 
         let (decoded, dec_len) = decode::<u32>(&buf[..len]).unwrap();
         assert_eq!(decoded, value);
@@ -109,15 +116,15 @@ fn test_varint_u64_exhaustive_boundaries() {
         (2097152, 4),
         (268435455, 4),
         (268435456, 5),
-        (34359738367, 5),     // Max 5-byte
-        (34359738368, 6),     // Min 6-byte
+        (34359738367, 5), // Max 5-byte
+        (34359738368, 6), // Min 6-byte
         (4398046511103, 6),
         (4398046511104, 7),
         (562949953421311, 7),
         (562949953421312, 8),
         (72057594037927935, 8),
         (72057594037927936, 9),
-        (9223372036854775807, 9),  // i64::MAX
+        (9223372036854775807, 9), // i64::MAX
         (9223372036854775808, 10),
         (18446744073709551614, 10),
         (18446744073709551615, 10), // u64::MAX
@@ -125,7 +132,11 @@ fn test_varint_u64_exhaustive_boundaries() {
 
     for (value, expected_len) in test_cases {
         let (buf, len) = encode(value);
-        assert_eq!(len, expected_len, "Incorrect length for u64 value {}", value);
+        assert_eq!(
+            len, expected_len,
+            "Incorrect length for u64 value {}",
+            value
+        );
 
         let (decoded, dec_len) = decode::<u64>(&buf[..len]).unwrap();
         assert_eq!(decoded, value);
@@ -252,9 +263,19 @@ fn test_zigzag_roundtrip_range_i32() {
 fn test_decode_len_matches_decode() {
     // Verify that decode_len returns the same length as decode
     let test_values = vec![
-        0u32, 1, 127, 128, 255, 256,
-        16383, 16384, 2097151, 2097152,
-        268435455, 268435456, u32::MAX,
+        0u32,
+        1,
+        127,
+        128,
+        255,
+        256,
+        16383,
+        16384,
+        2097151,
+        2097152,
+        268435455,
+        268435456,
+        u32::MAX,
     ];
 
     for value in test_values {
@@ -268,7 +289,11 @@ fn test_decode_len_matches_decode() {
         assert!(len_result.is_ok());
         let len_only = len_result.unwrap();
 
-        assert_eq!(len_only, actual_len, "decode_len mismatch for value {}", value);
+        assert_eq!(
+            len_only, actual_len,
+            "decode_len mismatch for value {}",
+            value
+        );
         assert_eq!(len_only, encode_len);
     }
 }

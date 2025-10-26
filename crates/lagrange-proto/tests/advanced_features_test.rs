@@ -1,6 +1,6 @@
-
 use lagrange_proto::{
-    Fixed32, Fixed64, ProtoEncode, ProtoEnum, ProtoMessage, ProtoOneof, SFixed32, SFixed64, SInt32, SInt64,
+    Fixed32, Fixed64, ProtoEncode, ProtoEnum, ProtoMessage, ProtoOneof, SFixed32, SFixed64, SInt32,
+    SInt64,
 };
 use std::collections::HashMap;
 
@@ -115,7 +115,12 @@ fn test_enum_roundtrip() {
 
 #[test]
 fn test_enum_all_values() {
-    for status in [Status::Unknown, Status::Active, Status::Inactive, Status::Deleted] {
+    for status in [
+        Status::Unknown,
+        Status::Active,
+        Status::Inactive,
+        Status::Deleted,
+    ] {
         let msg = MessageWithEnum {
             id: 1,
             status,
@@ -176,7 +181,6 @@ fn test_packed_fields_empty() {
 
 #[test]
 fn test_packed_vs_unpacked_size() {
-    
     let packed = MessageWithPackedFields {
         id: 1,
         numbers: (0..100).collect(),
@@ -187,7 +191,7 @@ fn test_packed_vs_unpacked_size() {
     let unpacked = MessageWithUnpackedFields {
         id: 1,
         numbers: (0..100).collect(),
-        names: vec![], 
+        names: vec![],
     };
 
     let packed_encoded = packed.encode_to_vec().unwrap();
@@ -208,7 +212,11 @@ fn test_unpacked_fields_roundtrip() {
     let msg = MessageWithUnpackedFields {
         id: 777,
         numbers: vec![1, 2, 3],
-        names: vec!["alice".to_string(), "bob".to_string(), "charlie".to_string()],
+        names: vec![
+            "alice".to_string(),
+            "bob".to_string(),
+            "charlie".to_string(),
+        ],
     };
 
     let encoded = msg.encode_to_vec().unwrap();
@@ -304,9 +312,12 @@ fn test_map_fields_roundtrip() {
         name: "test".to_string(),
     };
 
-    msg.string_map.insert("key1".to_string(), "value1".to_string());
-    msg.string_map.insert("key2".to_string(), "value2".to_string());
-    msg.string_map.insert("key3".to_string(), "value3".to_string());
+    msg.string_map
+        .insert("key1".to_string(), "value1".to_string());
+    msg.string_map
+        .insert("key2".to_string(), "value2".to_string());
+    msg.string_map
+        .insert("key3".to_string(), "value3".to_string());
 
     msg.int_map.insert(1, 100);
     msg.int_map.insert(2, 200);
@@ -343,7 +354,8 @@ fn test_map_with_many_entries() {
     };
 
     for i in 0..100 {
-        msg.string_map.insert(format!("key{}", i), format!("value{}", i));
+        msg.string_map
+            .insert(format!("key{}", i), format!("value{}", i));
         msg.int_map.insert(i, i as u64 * 10);
     }
 
@@ -375,13 +387,12 @@ struct MessageWithDefaults {
 
 #[test]
 fn test_default_values() {
-    
     let empty_bytes: &[u8] = &[];
     let msg = MessageWithDefaults::decode_from_slice(empty_bytes).unwrap();
 
     assert_eq!(msg.number, 42);
     assert_eq!(msg.greeting, "Hello");
-    assert_eq!(msg.flag, true);
+    assert!(msg.flag);
     assert_eq!(msg.status, Status::Active);
     assert_eq!(msg.optional_field, None);
 }
@@ -401,14 +412,13 @@ fn test_defaults_overridden() {
 
     assert_eq!(decoded.number, 100);
     assert_eq!(decoded.greeting, "World");
-    assert_eq!(decoded.flag, false);
+    assert!(!decoded.flag);
     assert_eq!(decoded.status, Status::Inactive);
     assert_eq!(decoded.optional_field, Some("test".to_string()));
 }
 
 #[derive(Debug, PartialEq, ProtoMessage)]
 struct Proto3Message {
-    
     #[proto(tag = 1)]
     implicit_int: i32,
 
@@ -427,12 +437,11 @@ struct Proto3Message {
 
 #[test]
 fn test_proto3_implicit_presence() {
-    
     let msg = Proto3Message {
-        implicit_int: 0,  
-        explicit_int: None,  
-        implicit_flag: false,  
-        explicit_flag: None,  
+        implicit_int: 0,
+        explicit_int: None,
+        implicit_flag: false,
+        explicit_flag: None,
         name: String::new(),
     };
 
@@ -442,18 +451,17 @@ fn test_proto3_implicit_presence() {
 
     assert_eq!(decoded.implicit_int, 0);
     assert_eq!(decoded.explicit_int, None);
-    assert_eq!(decoded.implicit_flag, false);
+    assert!(!decoded.implicit_flag);
     assert_eq!(decoded.explicit_flag, None);
 }
 
 #[test]
 fn test_proto3_explicit_presence() {
-    
     let msg = Proto3Message {
         implicit_int: 0,
-        explicit_int: Some(0),  
+        explicit_int: Some(0),
         implicit_flag: false,
-        explicit_flag: Some(false),  
+        explicit_flag: Some(false),
         name: "test".to_string(),
     };
 
@@ -466,7 +474,6 @@ fn test_proto3_explicit_presence() {
 
 #[test]
 fn test_proto3_presence_distinction() {
-    
     let msg1 = Proto3Message {
         implicit_int: 0,
         explicit_int: None,
@@ -572,7 +579,6 @@ fn test_oneof_none() {
 
 #[test]
 fn test_oneof_last_wins() {
-    
     let msg1 = MessageWithOneof {
         version: 1,
         data: Some(TestOneof::Name("first".to_string())),
@@ -586,11 +592,10 @@ fn test_oneof_last_wins() {
     let bytes2 = msg2.encode_to_vec().unwrap();
 
     let mut combined = bytes1.clone();
-    
+
     let mut i = 0;
     while i < bytes2.len() {
         if bytes2[i] == 40 {
-            
             combined.extend_from_slice(&bytes2[i..]);
             break;
         }
@@ -601,6 +606,7 @@ fn test_oneof_last_wins() {
     assert_eq!(decoded.data, Some(TestOneof::Id(999)));
 }
 
+#[allow(clippy::enum_variant_names)]
 #[derive(Debug, PartialEq, Clone, ProtoOneof)]
 enum ComplexOneof {
     #[proto(tag = 10)]

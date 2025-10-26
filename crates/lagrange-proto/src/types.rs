@@ -1,4 +1,3 @@
-
 use crate::decoding::ProtoDecode;
 use crate::encoding::ProtoEncode;
 use crate::error::{DecodeError, EncodeError};
@@ -154,7 +153,9 @@ impl ProtoDecode for Fixed64 {
         if buf.len() < 8 {
             return Err(DecodeError::UnexpectedEof);
         }
-        let bytes = [buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7]];
+        let bytes = [
+            buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7],
+        ];
         Ok(Self(u64::from_le_bytes(bytes)))
     }
 }
@@ -232,7 +233,9 @@ impl ProtoDecode for SFixed64 {
         if buf.len() < 8 {
             return Err(DecodeError::UnexpectedEof);
         }
-        let bytes = [buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7]];
+        let bytes = [
+            buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7],
+        ];
         Ok(Self(i64::from_le_bytes(bytes)))
     }
 }
@@ -320,7 +323,6 @@ mod tests {
 
     #[test]
     fn test_size_calculations() {
-        
         assert!(SInt32(0).encoded_size() < Fixed32(0).encoded_size());
         assert!(SInt32(100).encoded_size() < Fixed32(100).encoded_size());
 

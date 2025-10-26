@@ -69,7 +69,12 @@ inventory::collect!(ServiceRegistration);
 pub struct EventSubscription {
     pub event_type: TypeId,
     pub protocol_mask: u8,
-    pub handler: fn(Arc<BotContext>, EventMessage) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Bytes>> + Send + 'static>>,
+    pub handler: fn(
+        Arc<BotContext>,
+        EventMessage,
+    ) -> std::pin::Pin<
+        Box<dyn std::future::Future<Output = Result<Bytes>> + Send + 'static>,
+    >,
 }
 
 inventory::collect!(EventSubscription);
