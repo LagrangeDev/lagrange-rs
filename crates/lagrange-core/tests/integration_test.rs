@@ -1,5 +1,5 @@
 use bytes::Bytes;
-use lagrange_core::internal::services::LoginEvent;
+use lagrange_core::internal::services::{LoginCommand, LoginEventReq};
 use lagrange_core::{config::BotConfig, keystore::BotKeystore, BotContext, Protocols};
 
 #[tokio::test]
@@ -66,9 +66,11 @@ async fn test_event_context() {
 
     let mut receiver = bot.event.subscribe();
 
-    let event = LoginEvent {
-        uin: 123456,
+    let event = LoginEventReq {
+        cmd: LoginCommand::Tgtgt,
         password: "test".to_string(),
+        ticket: String::new(),
+        code: String::new(),
     };
 
     bot.post(event);
@@ -81,18 +83,20 @@ async fn test_event_context() {
 async fn test_typed_event_subscription() {
     let bot = BotContext::builder().build();
 
-    let mut typed_receiver = bot.event.subscribe_to::<LoginEvent>();
+    let mut typed_receiver = bot.event.subscribe_to::<LoginEventReq>();
 
-    bot.post(LoginEvent {
-        uin: 999999,
+    bot.post(LoginEventReq {
+        cmd: LoginCommand::Tgtgt,
         password: "secure".to_string(),
+        ticket: String::new(),
+        code: String::new(),
     });
 
     let event = typed_receiver.try_recv();
     assert!(event.is_ok());
 
     if let Ok(login_event) = event {
-        assert_eq!(login_event.uin, 999999);
+        assert_eq!(login_event.password, "secure");
     }
 }
 

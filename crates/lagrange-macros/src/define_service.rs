@@ -3,10 +3,66 @@ use quote::quote;
 use syn::{
     braced,
     parse::{Parse, ParseStream},
-    parse_macro_input, Block, Ident, LitBool, LitStr, Path, ReturnType, Signature, Token, Type,
+    parse_macro_input,
+    spanned::Spanned,
+    Block, Expr, Ident, LitBool, LitStr, Path, ReturnType, Signature, Token, Type,
 };
 
 use crate::utils::{suggest_closest_match, validate_path_structure};
+
+/// Validate that a protocol expression is valid and extract the constant name
+/// Expects expressions like `Protocols::PC`, `Protocols::ANDROID`, etc.
+/// Returns the constant name (e.g., "PC", "ANDROID")
+fn validate_and_extract_protocol(expr: &Expr) -> syn::Result<String> {
+    const VALID_PROTOCOLS: &[&str] = &[
+        // Bit mask constants
+        "PC",
+        "ANDROID",
+        "ALL",
+        // Individual variants
+        "Windows",
+        "MacOs",
+        "Linux",
+        "AndroidPhone",
+        "AndroidPad",
+        "AndroidWatch",
+    ];
+
+    // Expression should be a path like Protocols::PC
+    if let Expr::Path(expr_path) = expr {
+        let path = &expr_path.path;
+
+        // Validate it's of the form Protocols::X
+        if path.segments.len() == 2 {
+            let first_segment = &path.segments[0];
+            let second_segment = &path.segments[1];
+
+            if first_segment.ident == "Protocols" {
+                let constant_name = second_segment.ident.to_string();
+
+                if VALID_PROTOCOLS.contains(&constant_name.as_str()) {
+                    return Ok(constant_name);
+                }
+
+                let mut error_msg = format!(
+                    "Invalid protocol constant: 'Protocols::{}'\n\nValid protocol constants are:\n\nBit masks:\n  - Protocols::PC\n  - Protocols::ANDROID\n  - Protocols::ALL\n\nIndividual variants:\n  - Protocols::Windows\n  - Protocols::MacOs\n  - Protocols::Linux\n  - Protocols::AndroidPhone\n  - Protocols::AndroidPad\n  - Protocols::AndroidWatch",
+                    constant_name
+                );
+
+                if let Some(suggestion) = suggest_closest_match(&constant_name, VALID_PROTOCOLS) {
+                    error_msg.push_str(&format!("\n\nDid you mean 'Protocols::{}'?", suggestion));
+                }
+
+                return Err(syn::Error::new(expr.span(), error_msg));
+            }
+        }
+    }
+
+    Err(syn::Error::new(
+        expr.span(),
+        "Protocol must be specified as Protocols::CONSTANT\n\nExamples:\n  - Protocols::PC\n  - Protocols::ANDROID\n  - Protocols::ALL\n  - Protocols::Windows"
+    ))
+}
 
 /// Struct field definition for services! macro
 struct ServiceField {
@@ -18,6 +74,14 @@ struct ServiceField {
 struct ServiceFunction {
     signature: Signature,
     body: Block,
+}
+
+/// Protocol handler containing protocol filter and parse/build functions
+struct ProtocolHandler {
+    protocol_expr: Option<Expr>,      // The full expression like Protocols::PC (for code gen)
+    protocol_suffix: Option<String>,  // The extracted constant name like "PC" (for naming)
+    parse_fn: ServiceFunction,
+    build_fn: ServiceFunction,
 }
 
 impl ServiceFunction {
@@ -97,8 +161,7 @@ struct UnifiedServiceArgs {
     request_fields: Vec<ServiceField>,
     response_name: Ident,
     response_fields: Vec<ServiceField>,
-    parse_fn: ServiceFunction,
-    build_fn: ServiceFunction,
+    handlers: Vec<ProtocolHandler>,
 }
 
 impl Parse for UnifiedServiceArgs {
@@ -121,30 +184,12 @@ impl Parse for UnifiedServiceArgs {
         let mut request_fields = Vec::new();
         let mut response_name = None;
         let mut response_fields = Vec::new();
-        let mut parse_fn = None;
-        let mut build_fn = None;
+        let mut handlers = Vec::new();
 
         while !content.is_empty() {
             let lookahead = content.lookahead1();
 
-            if lookahead.peek(Token![async]) {
-                // Parse full async function with signature
-                let fork = content.fork();
-                fork.parse::<Token![async]>()?;
-                fork.parse::<Token![fn]>()?;
-                let fn_name: Ident = fork.parse()?;
-
-                if fn_name == "parse" {
-                    parse_fn = Some(ServiceFunction::parse_with_name(&content, "parse")?);
-                } else if fn_name == "build" {
-                    build_fn = Some(ServiceFunction::parse_with_name(&content, "build")?);
-                } else {
-                    return Err(syn::Error::new(
-                        fn_name.span(),
-                        "Expected 'parse' or 'build'",
-                    ));
-                }
-            } else if lookahead.peek(Ident) {
+            if lookahead.peek(Ident) {
                 let key: Ident = content.parse()?;
 
                 if key == "request_type" {
@@ -190,6 +235,78 @@ impl Parse for UnifiedServiceArgs {
 
                     response_name = Some(name);
                     response_fields = fields;
+                } else if key == "service" {
+                    // Parse: service {} or service(protocol = Protocols::PC) {}
+                    let (protocol_expr, protocol_suffix) = if content.peek(syn::token::Paren) {
+                        // Parse (protocol = Protocols::PC)
+                        let protocol_content;
+                        syn::parenthesized!(protocol_content in content);
+
+                        let protocol_key: Ident = protocol_content.parse()?;
+                        if protocol_key != "protocol" {
+                            return Err(syn::Error::new(
+                                protocol_key.span(),
+                                "Expected 'protocol' parameter"
+                            ));
+                        }
+
+                        protocol_content.parse::<Token![=]>()?;
+                        let protocol_expr: Expr = protocol_content.parse()?;
+
+                        // Validate the protocol expression and extract the suffix
+                        let suffix = validate_and_extract_protocol(&protocol_expr)?;
+
+                        (Some(protocol_expr), Some(suffix))
+                    } else {
+                        // No parameters, defaults to Protocols::ALL
+                        (None, None)
+                    };
+
+                    // Parse service block containing parse and build functions
+                    let service_content;
+                    braced!(service_content in content);
+
+                    let mut parse_fn = None;
+                    let mut build_fn = None;
+
+                    while !service_content.is_empty() {
+                        let fork = service_content.fork();
+                        fork.parse::<Token![async]>()?;
+                        fork.parse::<Token![fn]>()?;
+                        let fn_name: Ident = fork.parse()?;
+
+                        if fn_name == "parse" {
+                            parse_fn = Some(ServiceFunction::parse_with_name(&service_content, "parse")?);
+                        } else if fn_name == "build" {
+                            build_fn = Some(ServiceFunction::parse_with_name(&service_content, "build")?);
+                        } else {
+                            return Err(syn::Error::new(
+                                fn_name.span(),
+                                "Expected 'parse' or 'build' function in service block"
+                            ));
+                        }
+                    }
+
+                    let parse_fn = parse_fn.ok_or_else(|| {
+                        syn::Error::new(
+                            key.span(),
+                            "Missing 'parse' function in service block"
+                        )
+                    })?;
+
+                    let build_fn = build_fn.ok_or_else(|| {
+                        syn::Error::new(
+                            key.span(),
+                            "Missing 'build' function in service block"
+                        )
+                    })?;
+
+                    handlers.push(ProtocolHandler {
+                        protocol_expr,
+                        protocol_suffix,
+                        parse_fn,
+                        build_fn,
+                    });
                 } else {
                     // Unknown key - provide helpful suggestions
                     let valid_keys = &[
@@ -198,6 +315,7 @@ impl Parse for UnifiedServiceArgs {
                         "disable_log",
                         "request",
                         "response",
+                        "service",
                     ];
                     let key_str = key.to_string();
                     let mut error_msg = format!("Unknown key: '{}'\n\nValid keys are:\n  - request_type: RequestType\n  - encrypt_type: EncryptType\n  - disable_log: bool\n  - request <Name> {{ fields }}\n  - response <Name> {{ fields }}", key_str);
@@ -226,18 +344,13 @@ impl Parse for UnifiedServiceArgs {
                 "Missing 'response' block\n\nExpected syntax:\n  response ResponseEventName {\n    field_name: Type,\n    // ...\n  }"
             )
         })?;
-        let parse_fn = parse_fn.ok_or_else(|| {
-            syn::Error::new(
+
+        if handlers.is_empty() {
+            return Err(syn::Error::new(
                 input.span(),
-                "Missing 'parse' function\n\nExpected syntax:\n  async fn parse(input: Bytes, context: Arc<BotContext>) -> Result<ResponseEventName> {\n    // Parse logic here\n  }"
-            )
-        })?;
-        let build_fn = build_fn.ok_or_else(|| {
-            syn::Error::new(
-                input.span(),
-                "Missing 'build' function\n\nExpected syntax:\n  async fn build(input: RequestEventName, context: Arc<BotContext>) -> Result<Bytes> {\n    // Build logic here\n  }"
-            )
-        })?;
+                "Missing service block\n\nExpected syntax:\n  service {\n    async fn parse(input: Bytes, context: Arc<BotContext>) -> Result<ResponseEventName> { ... }\n    async fn build(input: RequestEventName, context: Arc<BotContext>) -> Result<Bytes> { ... }\n  }\n\nOr for protocol-specific services:\n  service(protocol = PC) { ... }\n  service(protocol = ANDROID) { ... }\n  service(protocol = Windows) { ... }"
+            ));
+        }
 
         Ok(UnifiedServiceArgs {
             service_name,
@@ -249,8 +362,7 @@ impl Parse for UnifiedServiceArgs {
             request_fields,
             response_name,
             response_fields,
-            parse_fn,
-            build_fn,
+            handlers,
         })
     }
 }
@@ -383,7 +495,6 @@ pub(crate) fn define_service_impl(input: TokenStream) -> TokenStream {
     let response_name = &args.response_name;
 
     // Generate documentation
-    let service_doc = format!("Service for handling `{}` protocol command.", command);
     let request_doc = format!("Request event for `{}` command.", command);
     let response_doc = format!("Response event for `{}` command.", command);
 
@@ -455,12 +566,6 @@ pub(crate) fn define_service_impl(input: TokenStream) -> TokenStream {
         }
     });
 
-    // Extract function parameters and bodies
-    let parse_params = &args.parse_fn.signature.inputs;
-    let parse_body = &args.parse_fn.body;
-    let build_params = &args.build_fn.signature.inputs;
-    let build_body = &args.build_fn.body;
-
     // Build explicit return types for IDE clarity
     let parse_return_type = quote! { crate::error::Result<Self::Response> };
     let build_return_type = quote! { crate::error::Result<bytes::Bytes> };
@@ -494,16 +599,115 @@ pub(crate) fn define_service_impl(input: TokenStream) -> TokenStream {
         service_name.span(),
     );
 
+    // Generate service structs for each handler
+    let service_impls = args.handlers.iter().map(|handler| {
+        // Determine service struct name based on protocol
+        let handler_service_name = if args.handlers.len() == 1 && handler.protocol_suffix.is_none() {
+            // Single handler with no protocol: use base service name
+            service_name.clone()
+        } else {
+            // Multiple handlers or protocol-specific: append suffix
+            let suffix = handler.protocol_suffix.as_ref()
+                .map(|s| s.clone())
+                .unwrap_or_else(|| "All".to_string());
+            syn::Ident::new(
+                &format!("{}{}", service_name, suffix),
+                service_name.span(),
+            )
+        };
+
+        let parse_params = &handler.parse_fn.signature.inputs;
+        let parse_body = &handler.parse_fn.body;
+        let build_params = &handler.build_fn.signature.inputs;
+        let build_body = &handler.build_fn.body;
+
+        let handler_service_doc = if let Some(ref protocol_expr) = handler.protocol_expr {
+            let protocol_str = quote!(#protocol_expr).to_string();
+            format!("Service for handling `{}` protocol command (protocol: {}).", command, protocol_str)
+        } else {
+            format!("Service for handling `{}` protocol command (all protocols).", command)
+        };
+
+        quote! {
+            // Service struct
+            #[doc = #handler_service_doc]
+            #[doc = ""]
+            #[doc = "This service implements protocol handling for the command and provides"]
+            #[doc = "methods to parse incoming data and build outgoing requests."]
+            #[derive(Debug)]
+            pub struct #handler_service_name {
+                metadata: crate::protocol::ServiceMetadata,
+            }
+
+            impl #handler_service_name {
+                #[doc = "Get the protocol command string for this service."]
+                #[inline]
+                pub const fn command() -> &'static str {
+                    #command
+                }
+
+                #[doc = "Get the service metadata."]
+                #[inline]
+                pub fn metadata(&self) -> &crate::protocol::ServiceMetadata {
+                    &self.metadata
+                }
+            }
+
+            // Default implementation
+            #[automatically_derived]
+            impl Default for #handler_service_name {
+                #[inline]
+                fn default() -> Self {
+                    Self {
+                        metadata: #metadata_init,
+                    }
+                }
+            }
+
+            // BaseService implementation with explicit types
+            #[async_trait::async_trait]
+            impl crate::internal::services::BaseService for #handler_service_name {
+                type Request = #request_name;
+                type Response = #response_name;
+
+                #[doc = "Parse incoming bytes into a response event."]
+                #[doc = ""]
+                #[doc = "This method is called when the service receives data from the protocol layer."]
+                #[inline]
+                async fn parse_impl(&self, #parse_params) -> #parse_return_type #parse_body
+
+                #[doc = "Build outgoing bytes from a request event."]
+                #[doc = ""]
+                #[doc = "This method is called when the service needs to send a request."]
+                #[inline]
+                async fn build_impl(&self, #build_params) -> #build_return_type #build_body
+
+                #[inline]
+                fn metadata(&self) -> &crate::protocol::ServiceMetadata {
+                    &self.metadata
+                }
+            }
+
+            // Service registration
+            inventory::submit! {
+                crate::internal::services::ServiceRegistration {
+                    command: #command,
+                    factory: || Box::new(#handler_service_name::default()),
+                }
+            }
+        }
+    });
+
     let expanded = quote! {
         // Command constant for easy access and IDE navigation
-        #[doc = "Protocol command string for this services."]
+        #[doc = "Protocol command string for this service."]
         pub const #command_const_name: &str = #command;
 
         // Request event struct with comprehensive derives
         #[doc = #request_doc]
         #[doc = ""]
         #[doc = "This struct represents a request event that can be sent to trigger"]
-        #[doc = "the services operation."]
+        #[doc = "the service operation."]
         #[derive(Debug, Clone, PartialEq)]
         pub struct #request_name {
             #(#request_fields),*
@@ -526,7 +730,7 @@ pub(crate) fn define_service_impl(input: TokenStream) -> TokenStream {
         // Response event struct with comprehensive derives
         #[doc = #response_doc]
         #[doc = ""]
-        #[doc = "This struct represents the response from the services operation."]
+        #[doc = "This struct represents the response from the service operation."]
         #[derive(Debug, Clone, PartialEq)]
         pub struct #response_name {
             #(#response_fields),*
@@ -546,72 +750,8 @@ pub(crate) fn define_service_impl(input: TokenStream) -> TokenStream {
 
         impl crate::protocol::ProtocolEvent for #response_name {}
 
-        // Service struct
-        #[doc = #service_doc]
-        #[doc = ""]
-        #[doc = "This services implements protocol handling for the command and provides"]
-        #[doc = "methods to parse incoming data and build outgoing requests."]
-        #[derive(Debug)]
-        pub struct #service_name {
-            metadata: crate::protocol::ServiceMetadata,
-        }
-
-        impl #service_name {
-            #[doc = "Get the protocol command string for this services."]
-            #[inline]
-            pub const fn command() -> &'static str {
-                #command
-            }
-
-            #[doc = "Get the services metadata."]
-            #[inline]
-            pub fn metadata(&self) -> &crate::protocol::ServiceMetadata {
-                &self.metadata
-            }
-        }
-
-        // Default implementation
-        #[automatically_derived]
-        impl Default for #service_name {
-            #[inline]
-            fn default() -> Self {
-                Self {
-                    metadata: #metadata_init,
-                }
-            }
-        }
-
-        // BaseService implementation with explicit types
-        #[async_trait::async_trait]
-        impl crate::internal::services::BaseService for #service_name {
-            type Request = #request_name;
-            type Response = #response_name;
-
-            #[doc = "Parse incoming bytes into a response event."]
-            #[doc = ""]
-            #[doc = "This method is called when the services receives data from the protocol layer."]
-            #[inline]
-            async fn parse_impl(&self, #parse_params) -> #parse_return_type #parse_body
-
-            #[doc = "Build outgoing bytes from a request event."]
-            #[doc = ""]
-            #[doc = "This method is called when the services needs to send a request."]
-            #[inline]
-            async fn build_impl(&self, #build_params) -> #build_return_type #build_body
-
-            #[inline]
-            fn metadata(&self) -> &crate::protocol::ServiceMetadata {
-                &self.metadata
-            }
-        }
-
-        // Service registration
-        inventory::submit! {
-            crate::internal::services::ServiceRegistration {
-                command: #command,
-                factory: || Box::new(#service_name::default()),
-            }
-        }
+        // Generate service implementations for each handler
+        #(#service_impls)*
     };
 
     TokenStream::from(expanded)

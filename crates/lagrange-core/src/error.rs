@@ -23,6 +23,9 @@ pub enum Error {
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
 
+    #[error("Packet error: {0}")]
+    Packet(#[from] crate::utils::binary::PacketError),
+
     #[error("Other error: {0}")]
     Other(#[from] anyhow::Error),
 }

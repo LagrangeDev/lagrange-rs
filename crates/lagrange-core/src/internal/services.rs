@@ -100,5 +100,8 @@ impl SsoPacket {
 pub mod login;
 pub mod message;
 
-pub use login::{LoginEvent, LoginResponse, LoginService};
+pub use login::{
+    Command as LoginCommand, LoginEventReq, LoginEventResp, LoginServicePC,
+    LoginServiceANDROID, States as LoginStates,
+};
 pub use message::{SendMessageEvent, SendMessageResponse, SendMessageService};

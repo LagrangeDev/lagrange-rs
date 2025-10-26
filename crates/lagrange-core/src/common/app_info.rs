@@ -263,7 +263,7 @@ impl BotAppInfo {
         }
     }
 
-    fn inner(&self) -> &AppInfo {
+    pub fn inner(&self) -> &AppInfo {
         match self {
             Self::Windows(info) | Self::Linux(info) | Self::MacOs(info) => info,
             Self::Android { info, .. } => info,
