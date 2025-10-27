@@ -13,7 +13,8 @@ pub enum Protocols {
 impl Protocols {
     pub const PC: u8 = Self::Windows as u8 | Self::MacOs as u8 | Self::Linux as u8;
 
-    pub const ANDROID: u8 = Self::AndroidPhone as u8 | Self::AndroidPad as u8 | Self::AndroidWatch as u8;
+    pub const ANDROID: u8 =
+        Self::AndroidPhone as u8 | Self::AndroidPad as u8 | Self::AndroidWatch as u8;
 
     pub const ALL: u8 = Self::PC | Self::ANDROID;
 

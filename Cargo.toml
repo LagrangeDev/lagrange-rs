@@ -2,6 +2,7 @@
 resolver = "2"
 members = [
     "crates/lagrange-core",
+    "crates/lagrange-core-runner",
     "crates/lagrange-macros",
     "crates/lagrange-proto",
     "crates/lagrange-proto-derive",

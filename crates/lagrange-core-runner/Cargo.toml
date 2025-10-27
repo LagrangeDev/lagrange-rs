@@ -1,0 +1,26 @@
+[package]
+name = "lagrange-core-runner"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+publish = false
+
+[[bin]]
+name = "lagrange-runner"
+path = "src/main.rs"
+
+[dependencies]
+# Core library
+lagrange-core = { path = "../lagrange-core" }
+
+# Async runtime
+tokio.workspace = true
+
+# Logging and tracing
+tracing.workspace = true
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "ansi"] }
+
+# Error handling
+anyhow.workspace = true

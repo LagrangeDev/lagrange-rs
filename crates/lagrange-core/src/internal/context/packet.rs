@@ -113,10 +113,11 @@ impl PacketContext {
         if let Some((_, sender)) = self.pending_tasks.remove(&sequence) {
             if packet.ret_code != 0 {
                 tracing::error!(
-                    "Packet error: command={}, ret_code={}, extra={}",
-                    packet.command,
-                    packet.ret_code,
-                    packet.extra
+                    command = %packet.command,
+                    ret_code = packet.ret_code,
+                    extra = %packet.extra,
+                    sequence = packet.sequence,
+                    "Packet error received"
                 );
             }
 

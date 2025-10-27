@@ -72,7 +72,7 @@ impl SocketContext {
 
             tokio::spawn(async move {
                 if let Err(e) = Self::read_loop(read_half, packet_ctx, self_ref).await {
-                    tracing::error!("Socket read error: {}", e);
+                    tracing::error!(error = %e, "Socket read loop terminated");
                 }
             })
         };
@@ -82,7 +82,7 @@ impl SocketContext {
 
             tokio::spawn(async move {
                 if let Err(e) = Self::write_loop(write_half, outbound_rx, self_ref).await {
-                    tracing::error!("Socket write error: {}", e);
+                    tracing::error!(error = %e, "Socket write loop terminated");
                 }
             })
         };

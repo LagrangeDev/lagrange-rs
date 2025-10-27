@@ -56,24 +56,20 @@ impl BotContext {
         self.event.post(event);
     }
 
-    pub fn log_info(&self, message: &str) {
-        if self.config.verbose {
-            tracing::info!("{}", message);
-        }
-    }
-
-    pub fn log_error(&self, message: &str) {
-        tracing::error!("{}", message);
-    }
-
-    pub fn log_warning(&self, message: &str) {
-        tracing::warn!("{}", message);
-    }
-
-    pub fn log_debug(&self, message: &str) {
-        if self.config.verbose {
-            tracing::debug!("{}", message);
-        }
+    /// Creates a tracing span with bot context (uin, uid, online status)
+    ///
+    /// # Example
+    /// ```no_run
+    /// let _span = context.span().entered();
+    /// tracing::info!("Processing message"); // Will include bot context
+    /// ```
+    pub fn span(&self) -> tracing::Span {
+        tracing::info_span!(
+            "bot",
+            uin = ?self.bot_uin(),
+            uid = ?self.bot_uid(),
+            online = self.is_online()
+        )
     }
 }
 
@@ -146,6 +142,10 @@ impl BotContextBuilder {
 
 impl Drop for BotContext {
     fn drop(&mut self) {
-        self.log_debug("BotContext dropping - cleaning up resources");
+        tracing::debug!(
+            uin = ?self.bot_uin(),
+            uid = ?self.bot_uid(),
+            "BotContext dropping - cleaning up resources"
+        );
     }
 }

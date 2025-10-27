@@ -24,7 +24,10 @@ define_service! {
 
         service {
             async fn parse(input: Bytes, context: Arc<BotContext>) -> Result<SendMessageResponse> {
-                context.log_debug(&format!("Parsing send message response: {} bytes", input.len()));
+                tracing::debug!(
+                    bytes = input.len(),
+                    "Parsing send message response"
+                );
 
                 let message_id = u64::from_le_bytes(
                     input
@@ -43,11 +46,12 @@ define_service! {
             }
 
             async fn build(input: SendMessageEvent, context: Arc<BotContext>) -> Result<Bytes> {
-                let msg_type = if input.is_group { "group" } else { "friend" };
-                context.log_debug(&format!(
-                    "Building {} message to {}: {}",
-                    msg_type, input.target, input.content
-                ));
+                tracing::debug!(
+                    target = input.target,
+                    content = %input.content,
+                    is_group = input.is_group,
+                    "Building message"
+                );
 
                 let data = format!(
                     "{{\"target\":{},\"content\":\"{}\",\"is_group\":{}}}",

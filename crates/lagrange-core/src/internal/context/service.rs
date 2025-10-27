@@ -55,7 +55,11 @@ impl ServiceContext {
             .ok_or_else(|| Error::ServiceNotFound(packet.command.clone()))?;
 
         if !self.disabled_log.contains(&packet.command) {
-            tracing::debug!("Parsing packet: {}", packet.command);
+            tracing::debug!(
+                command = %packet.command,
+                data_len = packet.data.len(),
+                "Parsing incoming packet"
+            );
         }
 
         service.parse(packet.data.clone(), context).await

@@ -5,8 +5,7 @@ use lagrange_macros::define_service;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-#[allow(unused_imports)] // Used in macro arguments
-use crate::protocol::{EncryptType, RequestType, Protocols};
+use crate::protocol::{EncryptType, RequestType};
 use crate::utils::binary::{BinaryPacket, Prefix};
 use crate::utils::crypto::TeaProvider;
 
@@ -108,11 +107,11 @@ fn parse_login_response(
     let state = reader.read::<u8>()?;
     let mut parsed_tlvs = tlv_unpack(&mut reader)?;
 
-    context.log_debug(&format!(
-        "Login response: state={}, tlvs count={}",
-        state,
-        parsed_tlvs.len()
-    ));
+    tracing::debug!(
+        state = state,
+        tlv_count = parsed_tlvs.len(),
+        "Login response received"
+    );
 
     *ret_code = state;
 
@@ -123,10 +122,11 @@ fn parse_login_response(
         let error_title = error_reader.read_string(Prefix::INT16)?;
         let error_message = error_reader.read_string(Prefix::INT16)?;
 
-        context.log_info(&format!(
-            "Login error: {} - {}",
-            error_title, error_message
-        ));
+        tracing::info!(
+            error_title = %error_title,
+            error_message = %error_message,
+            "Login error received"
+        );
 
         *error = Some((error_title, error_message));
         return Ok(());
@@ -145,10 +145,10 @@ fn parse_login_response(
         let mut tlv119_reader = BinaryPacket::from_slice(&decrypted);
         let tlv_collection = tlv_unpack(&mut tlv119_reader)?;
 
-        context.log_debug(&format!(
-            "Decrypted TLV 0x119: {} inner TLVs",
-            tlv_collection.len()
-        ));
+        tracing::debug!(
+            inner_tlv_count = tlv_collection.len(),
+            "Decrypted TLV 0x119"
+        );
 
         *tlvs = tlv_collection;
         return Ok(());
@@ -253,9 +253,7 @@ define_service! {
                 let tlv_548_data = &[];
 
                 let data = match input.cmd {
-                    Command::Tgtgt => {
-                        packet.build_oicq_09_android(&input.password, energy, attach, tlv_548_data)
-                    }
+                    Command::Tgtgt => packet.build_oicq_09_android(&input.password, energy, attach, tlv_548_data),
                     Command::Captcha => packet.build_oicq_02_android(&input.ticket, energy, attach),
                     Command::FetchSMSCode => packet.build_oicq_08_android(attach),
                     Command::SubmitSMSCode => packet.build_oicq_07_android(&input.code, energy, attach),

@@ -37,6 +37,79 @@ pub trait BaseService: Send + Sync + Sized {
     fn metadata(&self) -> &ServiceMetadata;
 }
 
+/// Type alias for parse function results.
+///
+/// Use this in your service implementations for consistent, IDE-friendly type hints.
+///
+/// # Example
+/// ```ignore
+/// async fn parse(...) -> ParseResult<MyResponse> { ... }
+/// ```
+pub type ParseResult<T> = Result<T>;
+
+/// Type alias for build function results.
+///
+/// Use this in your service implementations for consistent, IDE-friendly type hints.
+///
+/// # Example
+/// ```ignore
+/// async fn build(...) -> BuildResult { ... }
+/// ```
+pub type BuildResult = Result<Bytes>;
+
+/// Helper trait for service function signatures.
+///
+/// This trait is NOT meant to be implemented directly. It exists solely to provide
+/// IDE auto-completion hints for the expected function signatures in `define_service!`.
+///
+/// # Usage Hint
+///
+/// When writing functions inside `define_service!`, use these signatures:
+///
+/// ```ignore
+/// async fn parse(input: Bytes, context: Arc<BotContext>) -> Result<YourResponse> {
+///     // Parse implementation
+/// }
+///
+/// async fn build(request: YourRequest, context: Arc<BotContext>) -> Result<Bytes> {
+///     // Build implementation
+/// }
+/// ```
+///
+/// You can also use the type aliases for cleaner code:
+/// ```ignore
+/// async fn parse(input: Bytes, context: Arc<BotContext>) -> ParseResult<YourResponse> { ... }
+/// async fn build(request: YourRequest, context: Arc<BotContext>) -> BuildResult { ... }
+/// ```
+#[allow(unused)]
+pub trait ServiceSignatures {
+    /// Request event type
+    type Request: ProtocolEvent;
+
+    /// Response event type
+    type Response: ProtocolEvent;
+
+    /// Expected signature for parse function in `define_service!` macro.
+    ///
+    /// # Parameters
+    /// - `input: Bytes` - The incoming packet data to parse
+    /// - `context: Arc<BotContext>` - The bot context with configuration and state
+    ///
+    /// # Returns
+    /// `Result<Self::Response>` - The parsed response event or an error
+    async fn parse(input: Bytes, context: Arc<BotContext>) -> Result<Self::Response>;
+
+    /// Expected signature for build function in `define_service!` macro.
+    ///
+    /// # Parameters
+    /// - `request: Self::Request` - The request event to serialize
+    /// - `context: Arc<BotContext>` - The bot context with configuration and state
+    ///
+    /// # Returns
+    /// `Result<Bytes>` - The serialized packet data or an error
+    async fn build(request: Self::Request, context: Arc<BotContext>) -> Result<Bytes>;
+}
+
 // Blanket implementation: automatically implements Service for any BaseService
 #[async_trait]
 impl<T: BaseService> Service for T {
@@ -97,11 +170,19 @@ impl SsoPacket {
 }
 
 // Service modules
+pub mod exchange_emp;
 pub mod login;
 pub mod message;
+pub mod qrlogin;
+pub mod trans_emp;
+pub mod uin_resolve;
 
+pub use exchange_emp::{ExchangeEmpCommand, ExchangeEmpServiceANDROID};
 pub use login::{
-    Command as LoginCommand, LoginEventReq, LoginEventResp, LoginServicePC,
-    LoginServiceANDROID, States as LoginStates,
+    Command as LoginCommand, LoginEventReq, LoginEventResp, LoginServiceANDROID, LoginServicePC,
+    States as LoginStates,
 };
 pub use message::{SendMessageEvent, SendMessageResponse, SendMessageService};
+pub use qrlogin::{QrLoginCloseServiceANDROID, QrLoginVerifyServiceANDROID};
+pub use trans_emp::{TransEmp12ServiceANDROID, TransEmp31ServiceANDROID};
+pub use uin_resolve::UinResolveServiceANDROID;

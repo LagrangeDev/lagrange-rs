@@ -7,7 +7,6 @@ use syn::{
     spanned::Spanned,
     Block, Expr, Ident, LitBool, LitStr, Path, ReturnType, Signature, Token, Type,
 };
-
 use crate::utils::{suggest_closest_match, validate_path_structure};
 
 /// Validate that a protocol expression is valid and extract the constant name
@@ -78,8 +77,8 @@ struct ServiceFunction {
 
 /// Protocol handler containing protocol filter and parse/build functions
 struct ProtocolHandler {
-    protocol_expr: Option<Expr>,      // The full expression like Protocols::PC (for code gen)
-    protocol_suffix: Option<String>,  // The extracted constant name like "PC" (for naming)
+    protocol_expr: Option<Expr>, // The full expression like Protocols::PC (for code gen)
+    protocol_suffix: Option<String>, // The extracted constant name like "PC" (for naming)
     parse_fn: ServiceFunction,
     build_fn: ServiceFunction,
 }
@@ -246,7 +245,7 @@ impl Parse for UnifiedServiceArgs {
                         if protocol_key != "protocol" {
                             return Err(syn::Error::new(
                                 protocol_key.span(),
-                                "Expected 'protocol' parameter"
+                                "Expected 'protocol' parameter",
                             ));
                         }
 
@@ -276,29 +275,25 @@ impl Parse for UnifiedServiceArgs {
                         let fn_name: Ident = fork.parse()?;
 
                         if fn_name == "parse" {
-                            parse_fn = Some(ServiceFunction::parse_with_name(&service_content, "parse")?);
+                            parse_fn =
+                                Some(ServiceFunction::parse_with_name(&service_content, "parse")?);
                         } else if fn_name == "build" {
-                            build_fn = Some(ServiceFunction::parse_with_name(&service_content, "build")?);
+                            build_fn =
+                                Some(ServiceFunction::parse_with_name(&service_content, "build")?);
                         } else {
                             return Err(syn::Error::new(
                                 fn_name.span(),
-                                "Expected 'parse' or 'build' function in service block"
+                                "Expected 'parse' or 'build' function in service block",
                             ));
                         }
                     }
 
                     let parse_fn = parse_fn.ok_or_else(|| {
-                        syn::Error::new(
-                            key.span(),
-                            "Missing 'parse' function in service block"
-                        )
+                        syn::Error::new(key.span(), "Missing 'parse' function in service block")
                     })?;
 
                     let build_fn = build_fn.ok_or_else(|| {
-                        syn::Error::new(
-                            key.span(),
-                            "Missing 'build' function in service block"
-                        )
+                        syn::Error::new(key.span(), "Missing 'build' function in service block")
                     })?;
 
                     handlers.push(ProtocolHandler {
@@ -367,13 +362,14 @@ impl Parse for UnifiedServiceArgs {
     }
 }
 
-/// Defines a services with request/response types and protocol handling.
+/// Defines a service with request/response types and protocol handling.
 ///
-/// This macro generates a complete services implementation including:
-/// - Request and Response event structs with constructors and getters
+/// This macro generates a complete service implementation including:
+/// - Request and Response event structs with constructors, getters, and builders
 /// - Service struct with BaseService trait implementation
-/// - Automatic services registration via inventory
+/// - Automatic service registration via inventory
 /// - Proper documentation for all generated types
+/// - Type aliases for better IDE support
 ///
 /// # Syntax
 ///
@@ -386,7 +382,7 @@ impl Parse for UnifiedServiceArgs {
 ///         // Optional: Specify encryption type (default: EncryptType::EncryptD2Key)
 ///         encrypt_type: EncryptType::EncryptEmpty,  // or EncryptType::EncryptD2Key
 ///
-///         // Optional: Disable logging for this services (default: false)
+///         // Optional: Disable logging for this service (default: false)
 ///         disable_log: true,
 ///
 ///         // Required: Define the request event structure
@@ -401,18 +397,56 @@ impl Parse for UnifiedServiceArgs {
 ///             status: bool,
 ///         }
 ///
-///         // Required: Parse incoming bytes into a response
-///         async fn parse(input: Bytes, context: Arc<BotContext>) -> Result<ResponseEventName> {
-///             // Parse logic here
-///             Ok(ResponseEventName { /* ... */ })
+///         // Required: Define service handlers (can have multiple for different protocols)
+///         service {
+///             // Parse incoming bytes into a response
+///             // Signature: async fn parse(bytes: Bytes, context: Arc<BotContext>) -> Result<Response>
+///             // Parameter names can be anything, but types must match exactly
+///             async fn parse(input: Bytes, context: Arc<BotContext>) -> Result<ResponseEventName> {
+///                 // Parse logic here
+///                 Ok(ResponseEventName::new(/* ... */))
+///             }
+///
+///             // Build outgoing bytes from a request
+///             // Signature: async fn build(request: Request, context: Arc<BotContext>) -> Result<Bytes>
+///             // Parameter names can be anything, but types must match exactly
+///             async fn build(req: RequestEventName, ctx: Arc<BotContext>) -> Result<Bytes> {
+///                 // Build logic here
+///                 Ok(Bytes::from(data))
+///             }
 ///         }
 ///
-///         // Required: Build outgoing bytes from a request
-///         async fn build(input: RequestEventName, context: Arc<BotContext>) -> Result<Bytes> {
-///             // Build logic here
-///             Ok(Bytes::from(data))
+///         // Optional: Protocol-specific handlers
+///         service(protocol = Protocols::PC) {
+///             async fn parse(input: Bytes, context: Arc<BotContext>) -> Result<ResponseEventName> { /* ... */ }
+///             async fn build(req: RequestEventName, ctx: Arc<BotContext>) -> Result<Bytes> { /* ... */ }
 ///         }
 ///     }
+/// }
+/// ```
+///
+/// # Function Signatures (IDE Reference)
+///
+/// When implementing `parse` and `build` functions, use these signatures.
+/// **Parameter names are flexible** - you can use any names you want!
+///
+/// ```ignore
+/// // Parse function - convert incoming bytes to response
+/// async fn parse(
+///     data: Bytes,              // or: input, bytes, packet, etc.
+///     ctx: Arc<BotContext>      // or: context, bot, bot_ctx, etc.
+/// ) -> Result<YourResponse>     // Must return Result<ResponseType>
+/// {
+///     // Your parsing logic
+/// }
+///
+/// // Build function - convert request to outgoing bytes
+/// async fn build(
+///     request: YourRequest,     // or: req, event, input, etc.
+///     ctx: Arc<BotContext>      // or: context, bot, bot_ctx, etc.
+/// ) -> Result<Bytes>            // Must return Result<Bytes>
+/// {
+///     // Your building logic
 /// }
 /// ```
 ///
@@ -494,9 +528,21 @@ pub(crate) fn define_service_impl(input: TokenStream) -> TokenStream {
     let request_name = &args.request_name;
     let response_name = &args.response_name;
 
-    // Generate documentation
-    let request_doc = format!("Request event for `{}` command.", command);
-    let response_doc = format!("Response event for `{}` command.", command);
+    // Builder names (needed for documentation)
+    let request_builder_name = Ident::new(
+        &format!("{}Builder", request_name),
+        request_name.span(),
+    );
+    let response_builder_name = Ident::new(
+        &format!("{}Builder", response_name),
+        response_name.span(),
+    );
+
+    // Generate documentation with cross-references
+    let request_doc = format!("Request event for `{}` command.\n\n# Related Types\n\n- Response: [`{}`]\n- Builder: [`{}`]\n- Service: [`{}`]",
+        command, response_name, request_builder_name, service_name);
+    let response_doc = format!("Response event for `{}` command.\n\n# Related Types\n\n- Request: [`{}`]\n- Builder: [`{}`]\n- Service: [`{}`]",
+        command, request_name, response_builder_name, service_name);
 
     // Generate request fields with proper visibility
     let request_fields = args.request_fields.iter().map(|f| {
@@ -539,6 +585,41 @@ pub(crate) fn define_service_impl(input: TokenStream) -> TokenStream {
         }
     });
 
+    // Generate builder fields and methods for request
+    let request_builder_fields = args.request_fields.iter().map(|f| {
+        let name = &f.name;
+        let ty = &f.ty;
+        quote! { #name: Option<#ty> }
+    });
+
+    let request_builder_methods = args.request_fields.iter().map(|f| {
+        let name = &f.name;
+        let ty = &f.ty;
+        let method_doc = format!("Set the `{}` field.", name);
+        quote! {
+            #[doc = #method_doc]
+            #[inline]
+            pub fn #name(mut self, value: #ty) -> Self {
+                self.#name = Some(value);
+                self
+            }
+        }
+    });
+
+    let request_builder_build_checks = args.request_fields.iter().map(|f| {
+        let name = &f.name;
+        let name_str = name.to_string();
+        quote! {
+            let #name = self.#name.ok_or_else(|| {
+                crate::error::Error::BuildError(
+                    format!("Missing required field: {}", #name_str)
+                )
+            })?;
+        }
+    });
+
+    let request_builder_field_names = args.request_fields.iter().map(|f| &f.name);
+
     // Generate constructor parameters for response
     let response_ctor_params = args.response_fields.iter().map(|f| {
         let name = &f.name;
@@ -565,6 +646,41 @@ pub(crate) fn define_service_impl(input: TokenStream) -> TokenStream {
             }
         }
     });
+
+    // Generate builder fields and methods for response
+    let response_builder_fields = args.response_fields.iter().map(|f| {
+        let name = &f.name;
+        let ty = &f.ty;
+        quote! { #name: Option<#ty> }
+    });
+
+    let response_builder_methods = args.response_fields.iter().map(|f| {
+        let name = &f.name;
+        let ty = &f.ty;
+        let method_doc = format!("Set the `{}` field.", name);
+        quote! {
+            #[doc = #method_doc]
+            #[inline]
+            pub fn #name(mut self, value: #ty) -> Self {
+                self.#name = Some(value);
+                self
+            }
+        }
+    });
+
+    let response_builder_build_checks = args.response_fields.iter().map(|f| {
+        let name = &f.name;
+        let name_str = name.to_string();
+        quote! {
+            let #name = self.#name.ok_or_else(|| {
+                crate::error::Error::BuildError(
+                    format!("Missing required field: {}", #name_str)
+                )
+            })?;
+        }
+    });
+
+    let response_builder_field_names = args.response_fields.iter().map(|f| &f.name);
 
     // Build explicit return types for IDE clarity
     let parse_return_type = quote! { crate::error::Result<Self::Response> };
@@ -594,7 +710,7 @@ pub(crate) fn define_service_impl(input: TokenStream) -> TokenStream {
     }
 
     // Generate command constant for IDE navigation
-    let command_const_name = syn::Ident::new(
+    let command_const_name = Ident::new(
         &format!("{}_COMMAND", service_name.to_string().to_uppercase()),
         service_name.span(),
     );
@@ -607,10 +723,9 @@ pub(crate) fn define_service_impl(input: TokenStream) -> TokenStream {
             service_name.clone()
         } else {
             // Multiple handlers or protocol-specific: append suffix
-            let suffix = handler.protocol_suffix.as_ref()
-                .map(|s| s.clone())
+            let suffix = handler.protocol_suffix.clone()
                 .unwrap_or_else(|| "All".to_string());
-            syn::Ident::new(
+            Ident::new(
                 &format!("{}{}", service_name, suffix),
                 service_name.span(),
             )
@@ -623,9 +738,11 @@ pub(crate) fn define_service_impl(input: TokenStream) -> TokenStream {
 
         let handler_service_doc = if let Some(ref protocol_expr) = handler.protocol_expr {
             let protocol_str = quote!(#protocol_expr).to_string();
-            format!("Service for handling `{}` protocol command (protocol: {}).", command, protocol_str)
+            format!("Service for handling `{}` protocol command (protocol: {}).\n\n# Related Types\n\n- Request: [`{}`]\n- Response: [`{}`]\n- Request Builder: [`{}`]\n- Response Builder: [`{}`]",
+                command, protocol_str, request_name, response_name, request_builder_name, response_builder_name)
         } else {
-            format!("Service for handling `{}` protocol command (all protocols).", command)
+            format!("Service for handling `{}` protocol command (all protocols).\n\n# Related Types\n\n- Request: [`{}`]\n- Response: [`{}`]\n- Request Builder: [`{}`]\n- Response Builder: [`{}`]",
+                command, request_name, response_name, request_builder_name, response_builder_name)
         };
 
         quote! {
@@ -673,12 +790,14 @@ pub(crate) fn define_service_impl(input: TokenStream) -> TokenStream {
                 #[doc = "Parse incoming bytes into a response event."]
                 #[doc = ""]
                 #[doc = "This method is called when the service receives data from the protocol layer."]
+                #[must_use]
                 #[inline]
                 async fn parse_impl(&self, #parse_params) -> #parse_return_type #parse_body
 
                 #[doc = "Build outgoing bytes from a request event."]
                 #[doc = ""]
                 #[doc = "This method is called when the service needs to send a request."]
+                #[must_use]
                 #[inline]
                 async fn build_impl(&self, #build_params) -> #build_return_type #build_body
 
@@ -708,6 +827,18 @@ pub(crate) fn define_service_impl(input: TokenStream) -> TokenStream {
         #[doc = ""]
         #[doc = "This struct represents a request event that can be sent to trigger"]
         #[doc = "the service operation."]
+        #[doc = ""]
+        #[doc = "# Example"]
+        #[doc = ""]
+        #[doc = "```ignore"]
+        #[doc = "// Using constructor"]
+        #[doc = concat!("let request = ", stringify!(#request_name), "::new(...);")]
+        #[doc = ""]
+        #[doc = "// Using builder (recommended for IDE auto-completion)"]
+        #[doc = concat!("let request = ", stringify!(#request_name), "::builder()")]
+        #[doc = "    .field_name(value)"]
+        #[doc = "    .build()?;"]
+        #[doc = "```"]
         #[derive(Debug, Clone, PartialEq)]
         pub struct #request_name {
             #(#request_fields),*
@@ -722,15 +853,69 @@ pub(crate) fn define_service_impl(input: TokenStream) -> TokenStream {
                 }
             }
 
+            #[doc = "Create a builder for this request type."]
+            #[doc = ""]
+            #[doc = "The builder pattern provides better IDE auto-completion and allows"]
+            #[doc = "for incremental construction of the request."]
+            #[inline]
+            pub fn builder() -> #request_builder_name {
+                #request_builder_name::default()
+            }
+
             #(#request_accessors)*
         }
 
         impl crate::protocol::ProtocolEvent for #request_name {}
 
+        // Request builder struct
+        #[doc = concat!("Builder for [`", stringify!(#request_name), "`].")]
+        #[doc = ""]
+        #[doc = "Provides a fluent API for constructing request events with IDE auto-completion."]
+        #[doc = ""]
+        #[doc = "# Example"]
+        #[doc = ""]
+        #[doc = "```ignore"]
+        #[doc = concat!("let request = ", stringify!(#request_name), "::builder()")]
+        #[doc = "    .field1(value1)"]
+        #[doc = "    .field2(value2)"]
+        #[doc = "    .build()?;"]
+        #[doc = "```"]
+        #[derive(Debug, Default, Clone)]
+        pub struct #request_builder_name {
+            #(#request_builder_fields),*
+        }
+
+        impl #request_builder_name {
+            #(#request_builder_methods)*
+
+            #[doc = "Build the request instance."]
+            #[doc = ""]
+            #[doc = "Returns an error if any required fields are missing."]
+            #[inline]
+            pub fn build(self) -> crate::error::Result<#request_name> {
+                #(#request_builder_build_checks)*
+                Ok(#request_name {
+                    #(#request_builder_field_names),*
+                })
+            }
+        }
+
         // Response event struct with comprehensive derives
         #[doc = #response_doc]
         #[doc = ""]
         #[doc = "This struct represents the response from the service operation."]
+        #[doc = ""]
+        #[doc = "# Example"]
+        #[doc = ""]
+        #[doc = "```ignore"]
+        #[doc = "// Using constructor"]
+        #[doc = concat!("let response = ", stringify!(#response_name), "::new(...);")]
+        #[doc = ""]
+        #[doc = "// Using builder (recommended for IDE auto-completion)"]
+        #[doc = concat!("let response = ", stringify!(#response_name), "::builder()")]
+        #[doc = "    .field_name(value)"]
+        #[doc = "    .build()?;"]
+        #[doc = "```"]
         #[derive(Debug, Clone, PartialEq)]
         pub struct #response_name {
             #(#response_fields),*
@@ -745,10 +930,52 @@ pub(crate) fn define_service_impl(input: TokenStream) -> TokenStream {
                 }
             }
 
+            #[doc = "Create a builder for this response type."]
+            #[doc = ""]
+            #[doc = "The builder pattern provides better IDE auto-completion and allows"]
+            #[doc = "for incremental construction of the response."]
+            #[inline]
+            pub fn builder() -> #response_builder_name {
+                #response_builder_name::default()
+            }
+
             #(#response_accessors)*
         }
 
         impl crate::protocol::ProtocolEvent for #response_name {}
+
+        // Response builder struct
+        #[doc = concat!("Builder for [`", stringify!(#response_name), "`].")]
+        #[doc = ""]
+        #[doc = "Provides a fluent API for constructing response events with IDE auto-completion."]
+        #[doc = ""]
+        #[doc = "# Example"]
+        #[doc = ""]
+        #[doc = "```ignore"]
+        #[doc = concat!("let response = ", stringify!(#response_name), "::builder()")]
+        #[doc = "    .field1(value1)"]
+        #[doc = "    .field2(value2)"]
+        #[doc = "    .build()?;"]
+        #[doc = "```"]
+        #[derive(Debug, Default, Clone)]
+        pub struct #response_builder_name {
+            #(#response_builder_fields),*
+        }
+
+        impl #response_builder_name {
+            #(#response_builder_methods)*
+
+            #[doc = "Build the response instance."]
+            #[doc = ""]
+            #[doc = "Returns an error if any required fields are missing."]
+            #[inline]
+            pub fn build(self) -> crate::error::Result<#response_name> {
+                #(#response_builder_build_checks)*
+                Ok(#response_name {
+                    #(#response_builder_field_names),*
+                })
+            }
+        }
 
         // Generate service implementations for each handler
         #(#service_impls)*
