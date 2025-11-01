@@ -8,7 +8,6 @@ repository.workspace = true
 
 [dependencies]
 tokio.workspace = true
-futures.workspace = true
 async-trait.workspace = true
 serde.workspace = true
 serde_bytes.workspace = true
@@ -16,7 +15,7 @@ bytes.workspace = true
 dashmap.workspace = true
 thiserror.workspace = true
 anyhow.workspace = true
-inventory.workspace = true
+linkme.workspace = true
 tracing.workspace = true
 chrono.workspace = true
 rand.workspace = true
@@ -29,4 +28,3 @@ sha1 = "0.10"
 sha2 = "0.10"
 md5 = "0.7"
 num-bigint = "0.4"
-getrandom = "0.2"

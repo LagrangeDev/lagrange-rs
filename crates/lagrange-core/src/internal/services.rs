@@ -1,156 +1,119 @@
 use crate::{
     context::BotContext,
     error::Result,
-    protocol::{EventMessage, ProtocolEvent, ServiceMetadata},
+    protocol::{EventMessage, ServiceMetadata},
 };
 use async_trait::async_trait;
 use bytes::Bytes;
-use std::{any::TypeId, sync::Arc};
+use std::{
+    any::TypeId,
+    collections::HashMap,
+    sync::{Arc, OnceLock},
+};
 
+/// Core service trait that all services must implement.
+///
+/// Services handle protocol commands by:
+/// - `parse`: Converting incoming bytes to typed events
+/// - `build`: Converting typed events to outgoing bytes
+///
+/// Unlike the previous `BaseService` design, this trait works with
+/// untyped `EventMessage` to support multiple event types per service.
 #[async_trait]
 pub trait Service: Send + Sync {
+    /// Parse incoming packet bytes into an event.
     async fn parse(&self, input: Bytes, context: Arc<BotContext>) -> Result<EventMessage>;
 
+    /// Build outgoing packet bytes from an event.
     async fn build(&self, input: EventMessage, context: Arc<BotContext>) -> Result<Bytes>;
 
+    /// Get service metadata (command, encryption, etc.)
     fn metadata(&self) -> &ServiceMetadata;
 }
 
-#[async_trait]
-pub trait BaseService: Send + Sync + Sized {
-    type Request: ProtocolEvent + Clone;
-
-    type Response: ProtocolEvent;
-
-    async fn parse_impl(&self, _input: Bytes, _context: Arc<BotContext>) -> Result<Self::Response> {
-        Err(crate::error::Error::ParseError(
-            "parse not implemented".to_string(),
-        ))
-    }
-
-    async fn build_impl(&self, _input: Self::Request, _context: Arc<BotContext>) -> Result<Bytes> {
-        Err(crate::error::Error::BuildError(
-            "build not implemented".to_string(),
-        ))
-    }
-
-    fn metadata(&self) -> &ServiceMetadata;
+/// Mapping from an event type to a service with protocol filtering.
+#[derive(Clone)]
+pub struct EventMapping {
+    /// The service instance that handles this event
+    pub service: Arc<dyn Service>,
+    /// Protocol bitmask - only handle this event on matching protocols
+    pub protocol: u8,
 }
 
-/// Type alias for parse function results.
+/// Global service registry - singleton instance.
 ///
-/// Use this in your service implementations for consistent, IDE-friendly type hints.
-///
-/// # Example
-/// ```ignore
-/// async fn parse(...) -> ParseResult<MyResponse> { ... }
-/// ```
-pub type ParseResult<T> = Result<T>;
-
-/// Type alias for build function results.
-///
-/// Use this in your service implementations for consistent, IDE-friendly type hints.
-///
-/// # Example
-/// ```ignore
-/// async fn build(...) -> BuildResult { ... }
-/// ```
-pub type BuildResult = Result<Bytes>;
-
-/// Helper trait for service function signatures.
-///
-/// This trait is NOT meant to be implemented directly. It exists solely to provide
-/// IDE auto-completion hints for the expected function signatures in `define_service!`.
-///
-/// # Usage Hint
-///
-/// When writing functions inside `define_service!`, use these signatures:
-///
-/// ```ignore
-/// async fn parse(input: Bytes, context: Arc<BotContext>) -> Result<YourResponse> {
-///     // Parse implementation
-/// }
-///
-/// async fn build(request: YourRequest, context: Arc<BotContext>) -> Result<Bytes> {
-///     // Build implementation
-/// }
-/// ```
-///
-/// You can also use the type aliases for cleaner code:
-/// ```ignore
-/// async fn parse(input: Bytes, context: Arc<BotContext>) -> ParseResult<YourResponse> { ... }
-/// async fn build(request: YourRequest, context: Arc<BotContext>) -> BuildResult { ... }
-/// ```
-#[allow(unused)]
-pub trait ServiceSignatures {
-    /// Request event type
-    type Request: ProtocolEvent;
-
-    /// Response event type
-    type Response: ProtocolEvent;
-
-    /// Expected signature for parse function in `define_service!` macro.
-    ///
-    /// # Parameters
-    /// - `input: Bytes` - The incoming packet data to parse
-    /// - `context: Arc<BotContext>` - The bot context with configuration and state
-    ///
-    /// # Returns
-    /// `Result<Self::Response>` - The parsed response event or an error
-    async fn parse(input: Bytes, context: Arc<BotContext>) -> Result<Self::Response>;
-
-    /// Expected signature for build function in `define_service!` macro.
-    ///
-    /// # Parameters
-    /// - `request: Self::Request` - The request event to serialize
-    /// - `context: Arc<BotContext>` - The bot context with configuration and state
-    ///
-    /// # Returns
-    /// `Result<Bytes>` - The serialized packet data or an error
-    async fn build(request: Self::Request, context: Arc<BotContext>) -> Result<Bytes>;
+/// This replaces the inventory-based registration system with a manual
+/// registration approach similar to C#'s reflection-based discovery.
+pub struct ServiceRegistry {
+    /// Maps command strings to service instances
+    services: HashMap<String, Arc<dyn Service>>,
+    /// Maps event TypeId to service instances with protocol filters
+    services_by_event: HashMap<TypeId, Vec<EventMapping>>,
 }
 
-// Blanket implementation: automatically implements Service for any BaseService
-#[async_trait]
-impl<T: BaseService> Service for T {
-    async fn parse(&self, input: Bytes, context: Arc<BotContext>) -> Result<EventMessage> {
-        let response = BaseService::parse_impl(self, input, context).await?;
-        Ok(EventMessage::new(response))
+impl ServiceRegistry {
+    /// Create a new empty registry
+    fn new() -> Self {
+        Self {
+            services: HashMap::new(),
+            services_by_event: HashMap::new(),
+        }
     }
 
-    async fn build(&self, input: EventMessage, context: Arc<BotContext>) -> Result<Bytes> {
-        let event = input
-            .downcast_ref::<T::Request>()
-            .ok_or_else(|| crate::error::Error::ParseError("Invalid event type".to_string()))?
-            .clone();
-
-        BaseService::build_impl(self, event, context).await
+    /// Register a service with a command
+    pub fn register_service(&mut self, command: String, service: Arc<dyn Service>) {
+        self.services.insert(command, service);
     }
 
-    fn metadata(&self) -> &ServiceMetadata {
-        BaseService::metadata(self)
+    /// Register an event subscription for a service
+    pub fn register_event(&mut self, event_type: TypeId, service: Arc<dyn Service>, protocol: u8) {
+        self.services_by_event
+            .entry(event_type)
+            .or_default()
+            .push(EventMapping { service, protocol });
+    }
+
+    /// Get service by command
+    pub fn get_service(&self, command: &str) -> Option<&Arc<dyn Service>> {
+        self.services.get(command)
+    }
+
+    /// Get service mappings by event type
+    pub fn get_event_mappings(&self, event_type: TypeId) -> Option<&Vec<EventMapping>> {
+        self.services_by_event.get(&event_type)
+    }
+
+    /// Get all services
+    pub fn services(&self) -> &HashMap<String, Arc<dyn Service>> {
+        &self.services
     }
 }
 
-pub struct ServiceRegistration {
-    pub command: &'static str,
-    pub factory: fn() -> Box<dyn Service>,
+/// Global registry instance
+static REGISTRY: OnceLock<ServiceRegistry> = OnceLock::new();
+
+/// Get or initialize the global service registry
+pub fn registry() -> &'static ServiceRegistry {
+    REGISTRY.get_or_init(|| {
+        let mut registry = ServiceRegistry::new();
+        // Call all registration functions
+        __register_all_services(&mut registry);
+        registry
+    })
 }
 
-inventory::collect!(ServiceRegistration);
+/// Called by generated code to register all services
+///
+/// This function is implemented by the macro system - each `define_service!`
+/// invocation adds its registration to this function via linkme or similar.
+#[linkme::distributed_slice]
+pub static SERVICE_INITIALIZERS: [fn(&mut ServiceRegistry)];
 
-pub struct EventSubscription {
-    pub event_type: TypeId,
-    pub protocol_mask: u8,
-    pub handler: fn(
-        Arc<BotContext>,
-        EventMessage,
-    ) -> std::pin::Pin<
-        Box<dyn std::future::Future<Output = Result<Bytes>> + Send + 'static>,
-    >,
+fn __register_all_services(registry: &mut ServiceRegistry) {
+    for initializer in SERVICE_INITIALIZERS {
+        initializer(registry);
+    }
 }
-
-inventory::collect!(EventSubscription);
 
 #[derive(Debug, Clone)]
 pub struct SsoPacket {
@@ -175,8 +138,10 @@ mod system;
 
 // Re-export login-related services
 pub use login::{
-    ExchangeEmpCommand, ExchangeEmpServiceANDROID, LoginCommand, LoginEventReq, LoginEventResp,
-    LoginServiceANDROID, LoginServicePC, LoginStates, QrLoginCloseServiceANDROID,
-    QrLoginVerifyServiceANDROID, TransEmp12ServiceANDROID, TransEmp31ServiceANDROID,
-    UinResolveServiceANDROID,
+    CloseCodeEventReq, CloseCodeEventResp, ExchangeEmpCommand, ExchangeEmpEventReq,
+    ExchangeEmpEventResp, ExchangeEmpService, LoginCommand, LoginEventReq, LoginEventReqAndroid,
+    LoginEventResp, LoginEventRespAndroid, LoginService, LoginStates, QrLoginService,
+    TransEmp12EventReq, TransEmp12EventResp, TransEmp31EventReq, TransEmp31EventResp,
+    TransEmpService, UinResolveEventReq, UinResolveEventResp, UinResolveService,
+    VerifyCodeEventReq, VerifyCodeEventResp,
 };

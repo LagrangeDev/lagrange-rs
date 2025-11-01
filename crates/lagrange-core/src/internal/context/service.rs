@@ -1,44 +1,30 @@
 use crate::{
     config::BotConfig,
     error::{Error, Result},
-    internal::services::{Service, ServiceRegistration, SsoPacket},
+    internal::services::{registry, SsoPacket},
     protocol::{EventMessage, Protocols},
 };
 use bytes::Bytes;
-use dashmap::DashMap;
-use std::{any::TypeId, collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 pub struct ServiceContext {
-    services: HashMap<String, Box<dyn Service>>,
-
-    services_by_event: DashMap<TypeId, Box<dyn Service>>,
-
     disabled_log: std::collections::HashSet<String>,
-
-    #[allow(dead_code)]
     protocol: Protocols,
 }
 
 impl ServiceContext {
     pub fn new(config: &BotConfig) -> Arc<Self> {
-        let mut services = HashMap::new();
         let mut disabled_log = std::collections::HashSet::new();
 
-        for registration in inventory::iter::<ServiceRegistration> {
-            let service = (registration.factory)();
-            let command = service.metadata().command.to_string();
-            let disable_log = service.metadata().disable_log;
-
-            services.insert(command.clone(), service);
-
-            if disable_log {
-                disabled_log.insert(command);
+        // Get services from global registry
+        let reg = registry();
+        for (command, service) in reg.services() {
+            if service.metadata().disable_log {
+                disabled_log.insert(command.clone());
             }
         }
 
         Arc::new(Self {
-            services,
-            services_by_event: DashMap::new(),
             disabled_log,
             protocol: config.protocol,
         })
@@ -49,9 +35,9 @@ impl ServiceContext {
         packet: &SsoPacket,
         context: Arc<crate::context::BotContext>,
     ) -> Result<EventMessage> {
-        let service = self
-            .services
-            .get(&packet.command)
+        let reg = registry();
+        let service = reg
+            .get_service(&packet.command)
             .ok_or_else(|| Error::ServiceNotFound(packet.command.clone()))?;
 
         if !self.disabled_log.contains(&packet.command) {
@@ -71,16 +57,31 @@ impl ServiceContext {
         context: Arc<crate::context::BotContext>,
     ) -> Result<Bytes> {
         let event_type = event.type_id();
-        let service = self
-            .services_by_event
-            .get(&event_type)
+        let reg = registry();
+
+        let mappings = reg
+            .get_event_mappings(event_type)
             .ok_or_else(|| Error::ServiceNotFound(format!("event type {:?}", event_type)))?;
 
-        service.build(event, context).await
+        // Filter by protocol - find first matching service
+        for mapping in mappings {
+            // Check if this service's protocol mask matches our configured protocol
+            if self.protocol_matches(mapping.protocol) {
+                return mapping.service.build(event, context).await;
+            }
+        }
+
+        Err(Error::ServiceNotFound(format!(
+            "No service for event type {:?} matching protocol {:?}",
+            event_type, self.protocol
+        )))
     }
 
-    pub fn register_event_handler(&self, event_type: TypeId, service: Box<dyn Service>) {
-        self.services_by_event.insert(event_type, service);
+    /// Check if the service's protocol filter matches the configured protocol
+    fn protocol_matches(&self, service_protocol_mask: u8) -> bool {
+        // Check if the service's protocol mask includes our configured protocol
+        // This uses bitwise AND to check if our protocol bit is set in the mask
+        (self.protocol as u8) & service_protocol_mask != 0
     }
 
     pub fn is_log_disabled(&self, command: &str) -> bool {

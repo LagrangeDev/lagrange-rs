@@ -133,31 +133,47 @@ impl PacketContext {
         packet: &SsoPacket,
         attributes: Option<ServiceAttribute>,
     ) -> Result<Bytes> {
-        let keystore = self.keystore.read().expect("RwLock poisoned");
-
         let attrs = attributes.unwrap_or_default();
         let request_type = attrs.request_type.unwrap_or(RequestType::Simple);
-        let encrypt_type = attrs.encrypt_type.unwrap_or_else(|| {
-            if keystore.sigs.d2_key.is_empty() {
-                EncryptType::EncryptEmpty
-            } else {
-                EncryptType::EncryptD2Key
-            }
-        });
-
-        let app_info = self.get_app_info();
-        let sso_packer = SsoPacker::new(&keystore, app_info, self.protocol);
-        let service_packer = ServicePacker::new(&keystore, app_info);
 
         match request_type {
             RequestType::D2Auth => {
+                // Acquire lock for sec_info preparation, then drop it before await
                 let sec_info = self.get_secure_info(packet).await;
+
+                // Reacquire lock for encoding
+                let keystore = self.keystore.read().expect("RwLock poisoned");
+                let encrypt_type = attrs.encrypt_type.unwrap_or_else(|| {
+                    if keystore.sigs.d2_key.is_empty() {
+                        EncryptType::EncryptEmpty
+                    } else {
+                        EncryptType::EncryptD2Key
+                    }
+                });
+
+                let app_info = self.get_app_info();
+                let sso_packer = SsoPacker::new(&keystore, app_info, self.protocol);
+                let service_packer = ServicePacker::new(&keystore);
+
                 let sso_frame = sso_packer.build_protocol_12(packet, sec_info.as_ref());
                 let service_frame = service_packer.build_protocol_12(sso_frame, encrypt_type);
 
                 Ok(Bytes::from(service_frame))
             }
             RequestType::Simple => {
+                let keystore = self.keystore.read().expect("RwLock poisoned");
+                let encrypt_type = attrs.encrypt_type.unwrap_or_else(|| {
+                    if keystore.sigs.d2_key.is_empty() {
+                        EncryptType::EncryptEmpty
+                    } else {
+                        EncryptType::EncryptD2Key
+                    }
+                });
+
+                let app_info = self.get_app_info();
+                let sso_packer = SsoPacker::new(&keystore, app_info, self.protocol);
+                let service_packer = ServicePacker::new(&keystore);
+
                 let sso_frame = sso_packer.build_protocol_13(packet);
 
                 let service_frame = service_packer.build_protocol_13(
@@ -188,7 +204,7 @@ impl PacketContext {
         let keystore = self.keystore.read().expect("RwLock poisoned");
 
         let app_info = self.get_app_info();
-        let service_packer = ServicePacker::new(&keystore, app_info);
+        let service_packer = ServicePacker::new(&keystore);
         let sso_packer = SsoPacker::new(&keystore, app_info, self.protocol);
 
         let sso_data = service_packer

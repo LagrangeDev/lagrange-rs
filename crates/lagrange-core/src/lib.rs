@@ -37,14 +37,6 @@ pub use protocol::{EventMessage, ProtocolEvent, Protocols};
 /// - `Arc` for shared references
 /// - `Result` for error handling
 pub mod service_prelude {
-    //! Prelude for services definitions.
-    //!
-    //! Import this module to get all commonly needed types for defining services:
-    //!
-    //! ```ignore
-    //! use lagrange_core::service_prelude::*;
-    //! ```
-
     pub use crate::context::BotContext;
     pub use crate::error::Result;
     pub use crate::protocol::{EncryptType, ProtocolEvent, RequestType};

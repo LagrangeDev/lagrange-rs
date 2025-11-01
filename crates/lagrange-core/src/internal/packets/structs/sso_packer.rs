@@ -1,4 +1,4 @@
-use super::{sso_packet::SsoPacket, sso_secure_info::SsoSecureInfo, struct_base::StructBase};
+use super::{sso_packet::SsoPacket, sso_secure_info::SsoSecureInfo};
 use crate::{
     common::AppInfo,
     keystore::BotKeystore,
@@ -206,15 +206,5 @@ impl<'a> SsoPacker<'a> {
                 }
             })
             .unwrap();
-    }
-}
-
-impl<'a> StructBase for SsoPacker<'a> {
-    fn keystore(&self) -> &BotKeystore {
-        self.keystore
-    }
-
-    fn app_info(&self) -> &AppInfo {
-        self.app_info
     }
 }

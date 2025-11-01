@@ -19,9 +19,9 @@ const SERVER_PUBLIC_KEY: [u8; 49] = [
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum EncryptMethod {
-    EmSt = 0x45,
-    EmEcdh = 0x07,
-    EmEcdhSt = 0x87,
+    St = 0x45,
+    Ecdh = 0x07,
+    EcdhSt = 0x87,
 }
 
 /// WtLogin packet builder for QQ login operations
@@ -48,7 +48,7 @@ impl<'a> WtLogin<'a> {
         Ok(Self {
             share_key,
             keystore,
-            app_info
+            app_info,
         })
     }
 
@@ -75,13 +75,7 @@ impl<'a> WtLogin<'a> {
 
         writer.write_bytes(&tlvs.create_bytes());
 
-        self.build_code_2d_packet(
-            0x31,
-            writer.as_slice(),
-            EncryptMethod::EmEcdhSt,
-            false,
-            false,
-        )
+        self.build_code_2d_packet(0x31, writer.as_slice(), EncryptMethod::EcdhSt, false, false)
     }
 
     pub fn build_trans_emp_12(&self) -> Vec<u8> {
@@ -101,13 +95,7 @@ impl<'a> WtLogin<'a> {
         writer.write_str("", Prefix::INT16);
         writer.write(0u16); // tlv count = 0
 
-        self.build_code_2d_packet(
-            0x12,
-            writer.as_slice(),
-            EncryptMethod::EmEcdhSt,
-            false,
-            false,
-        )
+        self.build_code_2d_packet(0x12, writer.as_slice(), EncryptMethod::EcdhSt, false, false)
     }
 
     pub fn build_qrlogin_19(&self, k: &[u8]) -> Vec<u8> {
@@ -136,7 +124,7 @@ impl<'a> WtLogin<'a> {
 
         writer.write_bytes(&tlvs.create_bytes());
 
-        self.build_code_2d_packet(0x13, writer.as_slice(), EncryptMethod::EmSt, true, true)
+        self.build_code_2d_packet(0x13, writer.as_slice(), EncryptMethod::St, true, true)
     }
 
     pub fn build_qrlogin_20(&self, k: &[u8]) -> Vec<u8> {
@@ -161,7 +149,7 @@ impl<'a> WtLogin<'a> {
 
         writer.write_bytes(&tlvs.create_bytes());
 
-        self.build_code_2d_packet(0x14, writer.as_slice(), EncryptMethod::EmSt, true, true)
+        self.build_code_2d_packet(0x14, writer.as_slice(), EncryptMethod::St, true, true)
     }
 
     pub fn build_qrlogin_22(&self, k: &[u8]) -> Vec<u8> {
@@ -179,7 +167,7 @@ impl<'a> WtLogin<'a> {
 
         writer.write_bytes(&tlvs.create_bytes());
 
-        self.build_code_2d_packet(0x16, writer.as_slice(), EncryptMethod::EmSt, true, true)
+        self.build_code_2d_packet(0x16, writer.as_slice(), EncryptMethod::St, true, true)
     }
 
     pub fn build_oicq_09(&self) -> Vec<u8> {
@@ -201,7 +189,7 @@ impl<'a> WtLogin<'a> {
         tlvs.tlv_166();
         tlvs.tlv_521();
 
-        self.build_packet(0x810, &tlvs.create_bytes(), EncryptMethod::EmEcdhSt, false)
+        self.build_packet(0x810, &tlvs.create_bytes(), EncryptMethod::EcdhSt, false)
     }
 
     pub fn build_oicq_09_android(
@@ -239,7 +227,7 @@ impl<'a> WtLogin<'a> {
         tlvs.tlv_548(tlv_548_data);
         tlvs.tlv_553(attach);
 
-        self.build_packet(0x810, &tlvs.create_bytes(), EncryptMethod::EmEcdhSt, false)
+        self.build_packet(0x810, &tlvs.create_bytes(), EncryptMethod::EcdhSt, false)
     }
 
     pub fn build_oicq_02_android(&self, ticket: &str, energy: &[u8], attach: &[u8]) -> Vec<u8> {
@@ -257,7 +245,7 @@ impl<'a> WtLogin<'a> {
         tlvs.tlv_544(energy);
         tlvs.tlv_553(attach);
 
-        self.build_packet(0x810, &tlvs.create_bytes(), EncryptMethod::EmEcdhSt, false)
+        self.build_packet(0x810, &tlvs.create_bytes(), EncryptMethod::EcdhSt, false)
     }
 
     pub fn build_oicq_04_android(&self, qid: &str, attach: &[u8]) -> Vec<u8> {
@@ -278,7 +266,7 @@ impl<'a> WtLogin<'a> {
         tlvs.tlv_52d();
         tlvs.tlv_548(&[]);
 
-        self.build_packet(0x810, &tlvs.create_bytes(), EncryptMethod::EmEcdh, false)
+        self.build_packet(0x810, &tlvs.create_bytes(), EncryptMethod::Ecdh, false)
     }
 
     pub fn build_oicq_07_android(&self, code: &str, energy: &[u8], attach: &[u8]) -> Vec<u8> {
@@ -298,7 +286,7 @@ impl<'a> WtLogin<'a> {
         tlvs.tlv_544(energy);
         tlvs.tlv_553(attach);
 
-        self.build_packet(0x810, &tlvs.create_bytes(), EncryptMethod::EmEcdhSt, false)
+        self.build_packet(0x810, &tlvs.create_bytes(), EncryptMethod::EcdhSt, false)
     }
 
     pub fn build_oicq_08_android(&self, attach: &[u8]) -> Vec<u8> {
@@ -316,7 +304,7 @@ impl<'a> WtLogin<'a> {
         tlvs.tlv_197();
         tlvs.tlv_553(attach);
 
-        self.build_packet(0x810, &tlvs.create_bytes(), EncryptMethod::EmEcdhSt, false)
+        self.build_packet(0x810, &tlvs.create_bytes(), EncryptMethod::EcdhSt, false)
     }
 
     pub fn build_oicq_15_android(&self, energy: &[u8], attach: &[u8]) -> Vec<u8> {
@@ -348,7 +336,7 @@ impl<'a> WtLogin<'a> {
         tlvs.tlv_553(attach);
         tlvs.tlv_545();
 
-        self.build_packet(0x810, &tlvs.create_bytes(), EncryptMethod::EmEcdhSt, false)
+        self.build_packet(0x810, &tlvs.create_bytes(), EncryptMethod::EcdhSt, false)
     }
 
     fn build_packet(
@@ -359,8 +347,8 @@ impl<'a> WtLogin<'a> {
         use_wt_session: bool,
     ) -> Vec<u8> {
         let key = match method {
-            EncryptMethod::EmEcdh | EncryptMethod::EmEcdhSt => &self.share_key,
-            EncryptMethod::EmSt => {
+            EncryptMethod::Ecdh | EncryptMethod::EcdhSt => &self.share_key,
+            EncryptMethod::St => {
                 if use_wt_session {
                     self.keystore
                         .sigs

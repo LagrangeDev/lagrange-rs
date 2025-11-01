@@ -1,10 +1,5 @@
 use anyhow::Result;
-use lagrange_core::{
-    config::BotConfig,
-    keystore::BotKeystore,
-    protocol::Protocols,
-    BotContext,
-};
+use lagrange_core::{config::BotConfig, keystore::BotKeystore, protocol::Protocols, BotContext};
 use std::sync::Arc;
 use tracing::{error, info, warn, Level};
 use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
@@ -69,8 +64,8 @@ async fn main() -> Result<()> {
 }
 
 fn setup_tracing() -> Result<()> {
-    let env_filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new(LOG_LEVEL.as_str()));
+    let env_filter =
+        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(LOG_LEVEL.as_str()));
 
     let fmt_layer = fmt::layer()
         .with_target(true)

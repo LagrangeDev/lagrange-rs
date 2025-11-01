@@ -18,7 +18,6 @@ repository = "https://github.com/yourusername/lagrange-rs"
 [workspace.dependencies]
 # Async runtime
 tokio = { version = "1.42", features = ["full"] }
-futures = "0.3"
 async-trait = "0.1"
 
 # Serialization
@@ -34,7 +33,7 @@ thiserror = "2.0"
 anyhow = "1.0"
 
 # Macros
-inventory = "0.3"
+linkme = "0.3"
 syn = { version = "2.0", features = ["full"] }
 quote = "1.0"
 proc-macro2 = "1.0"

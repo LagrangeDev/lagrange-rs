@@ -5,7 +5,7 @@ use lagrange_macros::define_service;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::protocol::{EncryptType, RequestType};
+use crate::protocol::{EncryptType, EventMessage, Protocols, RequestType};
 use crate::utils::binary::{BinaryPacket, Prefix};
 use crate::utils::crypto::TeaProvider;
 use crate::utils::tlv_unpack;
@@ -145,51 +145,88 @@ fn parse_login_response(
     Ok(())
 }
 
-// Login service with protocol-specific service implementations
+// Login service with protocol-specific behavior
 define_service! {
-    LoginService: "wtlogin.login" {
+    LoginService {
+        command: "wtlogin.login",
         request_type: RequestType::D2Auth,
         encrypt_type: EncryptType::EncryptEmpty,
 
-        request LoginEventReq {
-            cmd: Command,
-            password: String,
-            ticket: String,
-            code: String,
+        events {
+            LoginEvent(protocol = Protocols::PC) {
+                request LoginEventReq {
+                    cmd: Command,
+                    password: String,
+                    ticket: String,
+                    code: String,
+                }
+                response LoginEventResp {
+                    ret_code: u8,
+                    error: Option<(String, String)>,
+                    tlvs: HashMap<u16, Vec<u8>>,
+                }
+            }
+
+            LoginEventAndroid(protocol = Protocols::ANDROID) {
+                request LoginEventReqAndroid {
+                    cmd: Command,
+                    password: String,
+                    ticket: String,
+                    code: String,
+                }
+                response LoginEventRespAndroid {
+                    ret_code: u8,
+                    error: Option<(String, String)>,
+                    tlvs: HashMap<u16, Vec<u8>>,
+                }
+            }
         }
 
-        response LoginEventResp {
-            ret_code: u8,
-            error: Option<(String, String)>,
-            tlvs: HashMap<u16, Vec<u8>>,
-        }
+        async fn parse(input: Bytes, context: Arc<BotContext>) -> Result<EventMessage> {
+            let keystore = context.keystore.read().expect("RwLock poisoned");
+            let app_info = context.app_info.inner();
+            let packet = WtLogin::new(&keystore, app_info)
+                .map_err(|e| crate::error::Error::ParseError(e.to_string()))?;
 
-        service(protocol = Protocols::PC) {
-            async fn parse(input: Bytes, context: Arc<BotContext>) -> Result<LoginEventResp> {
-                let keystore = context.keystore.read().expect("RwLock poisoned");
-                let app_info = context.app_info.inner();
-                let packet = WtLogin::new(&keystore, app_info)
-                    .map_err(|e| crate::error::Error::ParseError(e.to_string()))?;
+            let mut ret_code = 0;
+            let mut error = None;
+            let mut tlvs = HashMap::new();
 
-                let mut ret_code = 0;
-                let mut error = None;
-                let mut tlvs = HashMap::new();
+            parse_login_response(&packet, input, context.clone(), &mut ret_code, &mut error, &mut tlvs)?;
 
-                parse_login_response(&packet, input, context.clone(), &mut ret_code, &mut error, &mut tlvs)?;
-
-                Ok(LoginEventResp {
+            // Return appropriate response based on protocol
+            let protocol = context.config.protocol;
+            match protocol {
+                Protocols::Windows | Protocols::MacOs | Protocols::Linux => {
+                    Ok(EventMessage::new(LoginEventResp {
+                        ret_code,
+                        error,
+                        tlvs,
+                    }))
+                }
+                Protocols::AndroidPhone | Protocols::AndroidPad | Protocols::AndroidWatch => {
+                    Ok(EventMessage::new(LoginEventRespAndroid {
+                        ret_code,
+                        error,
+                        tlvs,
+                    }))
+                }
+                _ => Ok(EventMessage::new(LoginEventResp {
                     ret_code,
                     error,
                     tlvs,
-                })
+                })),
             }
+        }
 
-            async fn build(input: LoginEventReq, context: Arc<BotContext>) -> Result<Bytes> {
-                let keystore = context.keystore.read().expect("RwLock poisoned");
-                let app_info = context.app_info.inner();
-                let packet = WtLogin::new(&keystore, app_info)
-                    .map_err(|e| crate::error::Error::BuildError(e.to_string()))?;
+        async fn build(event: EventMessage, context: Arc<BotContext>) -> Result<Bytes> {
+            let keystore = context.keystore.read().expect("RwLock poisoned");
+            let app_info = context.app_info.inner();
+            let packet = WtLogin::new(&keystore, app_info)
+                .map_err(|e| crate::error::Error::BuildError(e.to_string()))?;
 
+            // Try PC event first
+            if let Some(input) = event.downcast_ref::<LoginEventReq>() {
                 let data = match input.cmd {
                     Command::Tgtgt => packet.build_oicq_09(),
                     _ => {
@@ -199,42 +236,13 @@ define_service! {
                         )))
                     }
                 };
-
-                Ok(Bytes::from(data))
-            }
-        }
-
-        service(protocol = Protocols::ANDROID) {
-            async fn parse(input: Bytes, context: Arc<BotContext>) -> Result<LoginEventResp> {
-                let keystore = context.keystore.read().expect("RwLock poisoned");
-                let app_info = context.app_info.inner();
-
-                let packet = WtLogin::new(&keystore, app_info)
-                    .map_err(|e| crate::error::Error::ParseError(e.to_string()))?;
-
-                let mut ret_code = 0;
-                let mut error = None;
-                let mut tlvs = HashMap::new();
-
-                parse_login_response(&packet, input, context.clone(), &mut ret_code, &mut error, &mut tlvs)?;
-
-                Ok(LoginEventResp {
-                    ret_code,
-                    error,
-                    tlvs,
-                })
+                return Ok(Bytes::from(data));
             }
 
-            async fn build(input: LoginEventReq, context: Arc<BotContext>) -> Result<Bytes> {
-                let keystore = context.keystore.read().expect("RwLock poisoned");
-                let app_info = context.app_info.inner();
-
-                let packet = WtLogin::new(&keystore, app_info)
-                    .map_err(|e| crate::error::Error::BuildError(e.to_string()))?;
-
-                // For Android, we need additional parameters (energy, attach, tlv_548_data)
+            // Try Android event
+            if let Some(input) = event.downcast_ref::<LoginEventReqAndroid>() {
+                // For Android, we need additional parameters
                 // These would normally come from the context or be calculated
-                // For now, we'll use empty arrays as placeholders
                 let energy = &[];
                 let attach = &[];
                 let tlv_548_data = &[];
@@ -245,15 +253,24 @@ define_service! {
                     Command::FetchSMSCode => packet.build_oicq_08_android(attach),
                     Command::SubmitSMSCode => packet.build_oicq_07_android(&input.code, energy, attach),
                 };
-
-                Ok(Bytes::from(data))
+                return Ok(Bytes::from(data));
             }
+
+            Err(crate::error::Error::BuildError(
+                "Invalid event type for LoginService".to_string(),
+            ))
         }
     }
 }
 
-// Helper methods for response type
+// Helper methods for response types
 impl LoginEventResp {
+    pub fn state(&self) -> States {
+        States::from(self.ret_code)
+    }
+}
+
+impl LoginEventRespAndroid {
     pub fn state(&self) -> States {
         States::from(self.ret_code)
     }

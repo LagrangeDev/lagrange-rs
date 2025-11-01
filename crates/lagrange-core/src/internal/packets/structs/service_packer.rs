@@ -1,6 +1,4 @@
-use super::struct_base::StructBase;
 use crate::{
-    common::AppInfo,
     keystore::BotKeystore,
     utils::{
         binary::{BinaryPacket, Prefix},
@@ -29,12 +27,11 @@ pub enum RequestType {
 /// Service-level packet packer (Protocol 12/13)
 pub struct ServicePacker<'a> {
     keystore: &'a BotKeystore,
-    app_info: &'a AppInfo,
 }
 
 impl<'a> ServicePacker<'a> {
-    pub fn new(keystore: &'a BotKeystore, app_info: &'a AppInfo) -> Self {
-        Self { keystore, app_info }
+    pub fn new(keystore: &'a BotKeystore) -> Self {
+        Self { keystore }
     }
 
     /// Build a Protocol 12 packet (D2 authentication)
@@ -153,15 +150,5 @@ impl<'a> ServicePacker<'a> {
         };
 
         Ok(decrypted)
-    }
-}
-
-impl<'a> StructBase for ServicePacker<'a> {
-    fn keystore(&self) -> &BotKeystore {
-        self.keystore
-    }
-
-    fn app_info(&self) -> &AppInfo {
-        self.app_info
     }
 }
