@@ -1,13 +1,14 @@
 use crate::internal::packets::login::wtlogin::WtLogin;
-use crate::{context::BotContext, error::Result};
+use crate::context::BotContext;
 use bytes::Bytes;
 use lagrange_macros::define_service;
 use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::protocol::{EncryptType, RequestType};
-use crate::utils::binary::{BinaryPacket, Prefix};
+use crate::utils::binary::BinaryPacket;
 use crate::utils::crypto::TeaProvider;
+use crate::utils::tlv_unpack;
 
 /// Exchange emp command type
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -15,20 +16,6 @@ use crate::utils::crypto::TeaProvider;
 pub enum ExchangeEmpCommand {
     /// Refresh by A1 credential
     RefreshByA1 = 0x0f,
-}
-
-/// Unpacks TLV (Tag-Length-Value) data from a binary packet
-fn tlv_unpack(reader: &mut BinaryPacket) -> Result<HashMap<u16, Vec<u8>>> {
-    let mut tlvs = HashMap::new();
-
-    let count = reader.read::<u16>()?;
-    for _ in 0..count {
-        let tag = reader.read::<u16>()?;
-        let data = reader.read_bytes_with_prefix(Prefix::INT16)?.to_vec();
-        tlvs.insert(tag, data);
-    }
-
-    Ok(tlvs)
 }
 
 // Exchange EMP service

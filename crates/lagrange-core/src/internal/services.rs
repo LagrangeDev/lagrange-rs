@@ -170,19 +170,13 @@ impl SsoPacket {
 }
 
 // Service modules
-pub mod exchange_emp;
 pub mod login;
-pub mod message;
-pub mod qrlogin;
-pub mod trans_emp;
-pub mod uin_resolve;
+mod system;
 
-pub use exchange_emp::{ExchangeEmpCommand, ExchangeEmpServiceANDROID};
+// Re-export login-related services
 pub use login::{
-    Command as LoginCommand, LoginEventReq, LoginEventResp, LoginServiceANDROID, LoginServicePC,
-    States as LoginStates,
+    ExchangeEmpCommand, ExchangeEmpServiceANDROID, LoginCommand, LoginEventReq, LoginEventResp,
+    LoginServiceANDROID, LoginServicePC, LoginStates, QrLoginCloseServiceANDROID,
+    QrLoginVerifyServiceANDROID, TransEmp12ServiceANDROID, TransEmp31ServiceANDROID,
+    UinResolveServiceANDROID,
 };
-pub use message::{SendMessageEvent, SendMessageResponse, SendMessageService};
-pub use qrlogin::{QrLoginCloseServiceANDROID, QrLoginVerifyServiceANDROID};
-pub use trans_emp::{TransEmp12ServiceANDROID, TransEmp31ServiceANDROID};
-pub use uin_resolve::UinResolveServiceANDROID;

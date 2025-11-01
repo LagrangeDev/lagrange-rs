@@ -29,7 +29,6 @@ pub struct WtLogin<'a> {
     share_key: Vec<u8>,
     keystore: &'a BotKeystore,
     app_info: &'a AppInfo,
-    ecdh_provider: EcdhProvider,
 }
 
 impl<'a> WtLogin<'a> {
@@ -49,8 +48,7 @@ impl<'a> WtLogin<'a> {
         Ok(Self {
             share_key,
             keystore,
-            app_info,
-            ecdh_provider,
+            app_info
         })
     }
 

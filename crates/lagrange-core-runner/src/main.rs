@@ -49,13 +49,6 @@ async fn main() -> Result<()> {
         .keystore(keystore)
         .build();
 
-    info!("Bot context initialized successfully");
-    info!("Bot Status:");
-    info!("   - UIN: {:?}", context.bot_uin());
-    info!("   - UID: {:?}", context.bot_uid());
-    info!("   - Online: {}", context.is_online());
-    info!("   - Protocol: {:?}", context.config.protocol);
-
     setup_event_handlers(context.clone());
 
     info!("Starting main event loop...");
