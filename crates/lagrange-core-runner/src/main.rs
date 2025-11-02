@@ -9,7 +9,7 @@ const BOT_PROTOCOL: Protocols = Protocols::Linux;
 const BOT_VERBOSE: bool = false;
 const AUTO_RECONNECT: bool = true;
 const AUTO_RELOGIN: bool = true;
-const LOG_LEVEL: Level = Level::INFO;
+const LOG_LEVEL: Level = Level::TRACE;
 const COLORED_LOGS: bool = true;
 
 #[tokio::main]
@@ -49,6 +49,11 @@ async fn main() -> Result<()> {
     info!("Starting main event loop...");
     info!("Press Ctrl+C to shutdown gracefully");
 
+    context.connect().await.expect("Failed to establish initial connection");
+
+    // Start connection monitor for auto-reconnect
+    context.clone().start_connection_monitor();
+
     match tokio::signal::ctrl_c().await {
         Ok(()) => {
             info!("Received shutdown signal, cleaning up...");
@@ -65,7 +70,8 @@ async fn main() -> Result<()> {
 
 fn setup_tracing() -> Result<()> {
     let env_filter =
-        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(LOG_LEVEL.as_str()));
+        EnvFilter::try_from_default_env()
+            .unwrap_or_else(|_| EnvFilter::new(LOG_LEVEL.as_str()));
 
     let fmt_layer = fmt::layer()
         .with_target(true)

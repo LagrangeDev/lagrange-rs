@@ -7,7 +7,7 @@ pub use login::{EncryptMethod, Tlv, TlvQrCode, WtLogin};
 
 // Re-export commonly used structs
 pub use structs::{
-    service_packer::{EncryptType, RequestType, ServicePacker},
+    service_packer::ServicePacker,
     sso_packer::SsoPacker,
     sso_packet::SsoPacket,
     sso_secure_info::SsoSecureInfo,

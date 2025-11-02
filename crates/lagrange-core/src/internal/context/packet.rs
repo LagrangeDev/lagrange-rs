@@ -3,10 +3,10 @@ use crate::{
     config::BotConfig,
     error::{Error, Result},
     internal::packets::{
-        EncryptType, RequestType, ServicePacker, SsoPacker, SsoPacket, SsoSecureInfo,
+        ServicePacker, SsoPacker, SsoPacket, SsoSecureInfo,
     },
     keystore::BotKeystore,
-    protocol::Protocols,
+    protocol::{EncryptType, Protocols, RequestType},
 };
 use bytes::Bytes;
 use dashmap::DashMap;
@@ -95,11 +95,23 @@ impl PacketContext {
             extra: String::new(),
         };
 
+        tracing::debug!(
+            sequence_u32 = sequence,
+            sequence_i32 = sso_packet.sequence,
+            command = %command,
+            "Sending packet and registering pending task"
+        );
+
         let encoded = self.encode_packet(&sso_packet, attributes).await?;
 
-        socket.send(encoded)?;
+        socket.send(encoded).await?;
 
         let response = rx.await.map_err(|_| {
+            tracing::warn!(
+                sequence = sequence,
+                command = %command,
+                "Response channel closed, removing pending task"
+            );
             self.pending_tasks.remove(&sequence);
             Error::NetworkError("Response channel closed".to_string())
         })?;
@@ -109,6 +121,13 @@ impl PacketContext {
 
     pub fn dispatch_packet(&self, packet: SsoPacket) -> Option<SsoPacket> {
         let sequence = packet.sequence as u32;
+
+        tracing::debug!(
+            packet_sequence_i32 = packet.sequence,
+            converted_sequence_u32 = sequence,
+            pending_tasks_count = self.pending_tasks.len(),
+            "Attempting to dispatch packet"
+        );
 
         if let Some((_, sender)) = self.pending_tasks.remove(&sequence) {
             if packet.ret_code != 0 {
@@ -121,14 +140,33 @@ impl PacketContext {
                 );
             }
 
+            tracing::debug!(
+                sequence = sequence,
+                command = %packet.command,
+                "Successfully matched and removed pending task"
+            );
+
             let _ = sender.send(packet);
             None
         } else {
+            // Collect all pending sequence numbers for debugging
+            let pending_sequences: Vec<u32> = self.pending_tasks.iter()
+                .map(|entry| *entry.key())
+                .collect();
+
+            tracing::warn!(
+                sequence_i32 = packet.sequence,
+                sequence_u32 = sequence,
+                command = %packet.command,
+                pending_tasks_count = self.pending_tasks.len(),
+                pending_sequences = ?pending_sequences,
+                "Failed to find pending task for sequence - packet will be routed to services"
+            );
             Some(packet)
         }
     }
 
-    async fn encode_packet(
+    pub async fn encode_packet(
         &self,
         packet: &SsoPacket,
         attributes: Option<ServiceAttribute>,

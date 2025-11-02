@@ -116,7 +116,6 @@ impl BotContextBuilder {
 
         let cache = CacheContext::new();
         let socket = SocketContext::new();
-        let event = EventContext::new();
 
         let keystore_arc = Arc::new(std::sync::RwLock::new(keystore.clone()));
         let app_info_arc = Arc::new(app_info.clone());
@@ -125,6 +124,10 @@ impl BotContextBuilder {
         let packet = PacketContext::new(keystore_arc, app_info_arc, &config);
 
         let service = ServiceContext::new(&config);
+
+        // EventContext needs service, packet, socket, and config
+        let config_arc = Arc::new(config.clone());
+        let event = EventContext::new(service.clone(), packet.clone(), socket.clone(), config_arc);
 
         Arc::new(BotContext {
             config,

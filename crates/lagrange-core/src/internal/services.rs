@@ -115,26 +115,12 @@ fn __register_all_services(registry: &mut ServiceRegistry) {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct SsoPacket {
-    pub sequence: u32,
-    pub command: String,
-    pub data: Bytes,
-}
-
-impl SsoPacket {
-    pub fn new(sequence: u32, command: String, data: Bytes) -> Self {
-        Self {
-            sequence,
-            command,
-            data,
-        }
-    }
-}
+// Re-export SsoPacket from packets module for convenience
+pub use crate::internal::packets::SsoPacket;
 
 // Service modules
 pub mod login;
-mod system;
+pub mod system;
 
 // Re-export login-related services
 pub use login::{
@@ -145,3 +131,6 @@ pub use login::{
     TransEmpService, UinResolveEventReq, UinResolveEventResp, UinResolveService,
     VerifyCodeEventReq, VerifyCodeEventResp,
 };
+
+// Re-export system-related services
+pub use system::{AliveEventReq, AliveEventResp};

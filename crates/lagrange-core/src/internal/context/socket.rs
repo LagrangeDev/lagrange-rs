@@ -9,38 +9,37 @@ const IPV6_SERVER: &str = "msfwifiv6.3g.qq.com:8080";
 const HEADER_SIZE: usize = 4;
 
 pub struct SocketContext {
-    outbound_tx: mpsc::UnboundedSender<Bytes>,
-    outbound_rx: std::sync::Mutex<Option<mpsc::UnboundedReceiver<Bytes>>>,
-    connected: std::sync::RwLock<bool>,
-
-    read_task: std::sync::Mutex<Option<tokio::task::JoinHandle<()>>>,
-    write_task: std::sync::Mutex<Option<tokio::task::JoinHandle<()>>>,
+    outbound_tx: tokio::sync::RwLock<mpsc::UnboundedSender<Bytes>>,
+    connected: tokio::sync::RwLock<bool>,
+    read_task: tokio::sync::Mutex<Option<tokio::task::AbortHandle>>,
+    write_task: tokio::sync::Mutex<Option<tokio::task::AbortHandle>>,
 }
 
 impl SocketContext {
     pub fn new() -> Arc<Self> {
-        let (tx, rx) = mpsc::unbounded_channel();
+        let (tx, _rx) = mpsc::unbounded_channel();
         Arc::new(Self {
-            outbound_tx: tx,
-            outbound_rx: std::sync::Mutex::new(Some(rx)),
-            connected: std::sync::RwLock::new(false),
-            read_task: std::sync::Mutex::new(None),
-            write_task: std::sync::Mutex::new(None),
+            outbound_tx: tokio::sync::RwLock::new(tx),
+            connected: tokio::sync::RwLock::new(false),
+            read_task: tokio::sync::Mutex::new(None),
+            write_task: tokio::sync::Mutex::new(None),
         })
     }
 
-    pub fn send(&self, data: Bytes) -> crate::error::Result<()> {
+    pub async fn send(&self, data: Bytes) -> crate::error::Result<()> {
         self.outbound_tx
+            .read()
+            .await
             .send(data)
             .map_err(|_| crate::error::Error::NetworkError("Socket closed".to_string()))
     }
 
-    pub fn set_connected(&self, connected: bool) {
-        *self.connected.write().expect("RwLock poisoned") = connected;
+    async fn set_connected(&self, connected: bool) {
+        *self.connected.write().await = connected;
     }
 
-    pub fn is_connected(&self) -> bool {
-        *self.connected.read().expect("RwLock poisoned")
+    pub async fn is_connected(&self) -> bool {
+        *self.connected.read().await
     }
 
     pub async fn connect(
@@ -50,45 +49,40 @@ impl SocketContext {
     ) -> crate::error::Result<()> {
         self.disconnect().await;
 
-        let server = if use_ipv6 { IPV6_SERVER } else { IPV4_SERVER };
+        let (tx, rx) = mpsc::unbounded_channel();
+        *self.outbound_tx.write().await = tx;
 
+        let server = if use_ipv6 { IPV6_SERVER } else { IPV4_SERVER };
         let stream = TcpStream::connect(server)
             .await
             .map_err(|e| crate::error::Error::NetworkError(format!("Failed to connect: {}", e)))?;
+
         let (read_half, write_half) = stream.into_split();
-        let outbound_rx = self
-            .outbound_rx
-            .lock()
-            .expect("Mutex poisoned")
-            .take()
-            .ok_or_else(|| {
-                crate::error::Error::NetworkError("Outbound receiver already taken".to_string())
-            })?;
-        self.set_connected(true);
+        self.set_connected(true).await;
 
         let read_task = {
             let packet_ctx = packet_ctx.clone();
-            let self_ref = Arc::downgrade(self);
+            let socket_ctx = Arc::clone(self);
 
             tokio::spawn(async move {
-                if let Err(e) = Self::read_loop(read_half, packet_ctx, self_ref).await {
+                if let Err(e) = Self::read_loop(read_half, packet_ctx, socket_ctx).await {
                     tracing::error!(error = %e, "Socket read loop terminated");
                 }
             })
         };
 
         let write_task = {
-            let self_ref = Arc::downgrade(self);
+            let socket_ctx = Arc::clone(self);
 
             tokio::spawn(async move {
-                if let Err(e) = Self::write_loop(write_half, outbound_rx, self_ref).await {
+                if let Err(e) = Self::write_loop(write_half, rx, socket_ctx).await {
                     tracing::error!(error = %e, "Socket write loop terminated");
                 }
             })
         };
 
-        *self.read_task.lock().expect("Mutex poisoned") = Some(read_task);
-        *self.write_task.lock().expect("Mutex poisoned") = Some(write_task);
+        *self.read_task.lock().await = Some(read_task.abort_handle());
+        *self.write_task.lock().await = Some(write_task.abort_handle());
 
         Ok(())
     }
@@ -96,29 +90,69 @@ impl SocketContext {
     async fn read_loop(
         mut reader: tokio::net::tcp::OwnedReadHalf,
         packet_ctx: Arc<super::PacketContext>,
-        socket_ctx: std::sync::Weak<SocketContext>,
+        socket_ctx: Arc<SocketContext>,
     ) -> crate::error::Result<()> {
         let mut header_buf = [0u8; HEADER_SIZE];
 
         loop {
-            reader.read_exact(&mut header_buf).await.map_err(|e| {
-                if let Some(ctx) = socket_ctx.upgrade() {
-                    ctx.set_connected(false);
+            match reader.read_exact(&mut header_buf).await {
+                Ok(_) => {}
+                Err(e) => {
+                    socket_ctx.set_connected(false).await;
+
+                    if e.kind() == std::io::ErrorKind::UnexpectedEof
+                        || e.kind() == std::io::ErrorKind::ConnectionReset
+                        || e.kind() == std::io::ErrorKind::ConnectionAborted {
+                        tracing::info!("Connection closed");
+                    } else {
+                        tracing::error!(error = %e, "Failed to read header");
+                    }
+
+                    return Err(crate::error::Error::NetworkError(format!(
+                        "Failed to read header: {}",
+                        e
+                    )));
                 }
-                crate::error::Error::NetworkError(format!("Failed to read header: {}", e))
-            })?;
+            }
 
             let length = u32::from_be_bytes(header_buf) as usize;
-            let mut data = BytesMut::zeroed(length);
-            reader.read_exact(&mut data).await.map_err(|e| {
-                if let Some(ctx) = socket_ctx.upgrade() {
-                    ctx.set_connected(false);
+            let mut data = BytesMut::zeroed(length - 4);
+
+            match reader.read_exact(&mut data).await {
+                Ok(_) => {}
+                Err(e) => {
+                    socket_ctx.set_connected(false).await;
+                    return Err(crate::error::Error::NetworkError(format!(
+                        "Failed to read packet: {}",
+                        e
+                    )));
                 }
-                crate::error::Error::NetworkError(format!("Failed to read packet: {}", e))
-            })?;
-            if let Ok(packet) = packet_ctx.decode_packet(data.freeze()) {
-                if let Some(packet) = packet_ctx.dispatch_packet(packet) {
-                    drop(packet);
+            }
+
+            let data_frozen = data.freeze();
+            let hex = data_frozen.iter().map(|b| format!("{:02x}", b)).collect::<String>();
+            tracing::debug!(
+                size = data_frozen.len(),
+                hex = %hex,
+                "Received packet"
+            );
+
+            match packet_ctx.decode_packet(data_frozen) {
+                Ok(packet) => {
+                    tracing::debug!(command = %packet.command, sequence = packet.sequence, data_len = packet.data.len(), ret_code = packet.ret_code, "Decoded packet");
+
+                    let command = packet.command.clone();
+                    let sequence = packet.sequence;
+
+                    if let Some(packet) = packet_ctx.dispatch_packet(packet) {
+                        tracing::debug!(command = %packet.command, sequence = packet.sequence, "Packet routed to services");
+                        drop(packet);
+                    } else {
+                        tracing::debug!(command = %command, sequence = sequence, "Packet matched to pending request");
+                    }
+                }
+                Err(e) => {
+                    tracing::error!(error = %e,size = length - 4, "Failed to decode packet");
                 }
             }
         }
@@ -127,60 +161,75 @@ impl SocketContext {
     async fn write_loop(
         mut writer: tokio::net::tcp::OwnedWriteHalf,
         mut outbound_rx: mpsc::UnboundedReceiver<Bytes>,
-        socket_ctx: std::sync::Weak<SocketContext>,
+        socket_ctx: Arc<SocketContext>,
     ) -> crate::error::Result<()> {
         while let Some(data) = outbound_rx.recv().await {
             let length = data.len() as u32;
             let mut buffer = BytesMut::with_capacity(HEADER_SIZE + data.len());
-            buffer.put_u32(length); // Big-endian
+            buffer.put_u32(length + HEADER_SIZE as u32);
             buffer.put(data);
 
-            writer.write_all(&buffer).await.map_err(|e| {
-                if let Some(ctx) = socket_ctx.upgrade() {
-                    ctx.set_connected(false);
+            let hex = buffer.iter().map(|b| format!("{:02x}", b)).collect::<String>();
+            tracing::debug!(
+                size = buffer.len(),
+                hex = %hex,
+                "Sending packet"
+            );
+
+            match writer.write_all(&buffer).await {
+                Ok(_) => {
+                    tracing::debug!(
+                        size = buffer.len(),
+                        "Packet sent successfully"
+                    );
                 }
-                crate::error::Error::NetworkError(format!("Failed to write packet: {}", e))
-            })?;
+                Err(e) => {
+                    socket_ctx.set_connected(false).await;
+
+                    if e.kind() == std::io::ErrorKind::UnexpectedEof
+                        || e.kind() == std::io::ErrorKind::ConnectionReset
+                        || e.kind() == std::io::ErrorKind::ConnectionAborted
+                        || e.kind() == std::io::ErrorKind::BrokenPipe {
+                        tracing::info!("Connection closed while writing");
+                    } else {
+                        tracing::error!(error = %e, "Failed to write packet");
+                    }
+
+                    return Err(crate::error::Error::NetworkError(format!(
+                        "Failed to write packet: {}",
+                        e
+                    )));
+                }
+            }
         }
 
         Ok(())
     }
 
     pub async fn disconnect(&self) {
-        self.set_connected(false);
+        self.set_connected(false).await;
 
-        if let Some(task) = self.read_task.lock().expect("Mutex poisoned").take() {
-            task.abort();
+        if let Some(handle) = self.read_task.lock().await.take() {
+            handle.abort();
         }
-        if let Some(task) = self.write_task.lock().expect("Mutex poisoned").take() {
-            task.abort();
-        }
-
-        let (_tx, rx) = mpsc::unbounded_channel();
-        *self.outbound_rx.lock().expect("Mutex poisoned") = Some(rx);
-    }
-}
-
-impl Default for SocketContext {
-    fn default() -> Self {
-        let (tx, rx) = mpsc::unbounded_channel();
-        Self {
-            outbound_tx: tx,
-            outbound_rx: std::sync::Mutex::new(Some(rx)),
-            connected: std::sync::RwLock::new(false),
-            read_task: std::sync::Mutex::new(None),
-            write_task: std::sync::Mutex::new(None),
+        if let Some(handle) = self.write_task.lock().await.take() {
+            handle.abort();
         }
     }
 }
+
 
 impl Drop for SocketContext {
     fn drop(&mut self) {
-        if let Some(task) = self.read_task.lock().expect("Mutex poisoned").take() {
-            task.abort();
+        if let Ok(mut guard) = self.read_task.try_lock() {
+            if let Some(handle) = guard.take() {
+                handle.abort();
+            }
         }
-        if let Some(task) = self.write_task.lock().expect("Mutex poisoned").take() {
-            task.abort();
+        if let Ok(mut guard) = self.write_task.try_lock() {
+            if let Some(handle) = guard.take() {
+                handle.abort();
+            }
         }
     }
 }

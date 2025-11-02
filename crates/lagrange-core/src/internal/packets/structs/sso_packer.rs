@@ -1,4 +1,6 @@
-use super::{sso_packet::SsoPacket, sso_secure_info::SsoSecureInfo};
+use super::{
+    sso_packet::SsoPacket, sso_reserved_fields::SsoReservedFields, sso_secure_info::SsoSecureInfo,
+};
 use crate::{
     common::AppInfo,
     keystore::BotKeystore,
@@ -6,6 +8,7 @@ use crate::{
     utils::binary::{BinaryPacket, Prefix},
 };
 use bytes::Bytes;
+use lagrange_proto::ProtoMessage;
 use rand::Rng;
 
 const HEX_CHARS: &[u8] = b"0123456789abcdef";
@@ -161,50 +164,19 @@ impl<'a> SsoPacker<'a> {
 
         trace.push_str("-01");
 
-        writer
-            .with_length_prefix::<u32, _, _>(true, 0, |w| {
-                // TODO: Implement proper SsoReserveFields protobuf serialization
-                // For now, write minimal fields
+        // Build the SsoReservedFields using lagrange-proto
+        let reserved_fields = SsoReservedFields {
+            trace_parent: Some(trace),
+            uid: self.keystore.uid.clone(),
+            msg_type: self.protocol.is_android().then_some(32),
+            sec_info: sec_info.cloned(),
+            nt_core_version: self.protocol.is_android().then_some(100),
+        };
 
-                // TODO: Implement proper protobuf encoding with varint
-                // For now, write basic fields with length prefixes
+        // Encode to bytes using lagrange-proto
+        let serialized = reserved_fields.encode_to_vec().unwrap_or_default();
 
-                // Field 15: TraceParent (string)
-                if !trace.is_empty() {
-                    w.write((15u32 << 3) | 2); // field 15, wire type 2 (length-delimited)
-                    w.write(trace.len() as u32);
-                    w.write_bytes(trace.as_bytes());
-                }
-
-                // Field 16: Uid (string)
-                if let Some(ref uid) = self.keystore.uid {
-                    w.write((16u32 << 3) | 2); // field 16, wire type 2
-                    w.write(uid.len() as u32);
-                    w.write_bytes(uid.as_bytes());
-                }
-
-                // Field 24: SecInfo (message)
-                if let Some(sec_info) = sec_info {
-                    use lagrange_proto::ProtoMessage;
-                    let serialized = sec_info.encode_to_vec().unwrap_or_default();
-                    if !serialized.is_empty() {
-                        w.write((24u32 << 3) | 2); // field 24, wire type 2
-                        w.write(serialized.len() as u32);
-                        w.write_bytes(&serialized);
-                    }
-                }
-
-                // Android-specific fields
-                if self.protocol.is_android() {
-                    // Field 21: MsgType (uint32)
-                    w.write(21u32 << 3); // field 21, wire type 0 (varint)
-                    w.write(32u32); // msg_type = 32
-
-                    // Field 26: NtCoreVersion (uint32)
-                    w.write(26u32 << 3); // field 26, wire type 0
-                    w.write(100u32); // nt_core_version = 100
-                }
-            })
-            .unwrap();
+        // Write with u32 length prefix
+        writer.write_bytes_with_prefix(&serialized, Prefix::INT32 | Prefix::WITH_PREFIX);
     }
 }

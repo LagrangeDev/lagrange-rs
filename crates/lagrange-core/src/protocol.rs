@@ -116,12 +116,12 @@ pub enum RequestType {
     /// Use D2 authentication for the request.
     ///
     /// This is the default and most commonly used request type for authenticated operations.
-    D2Auth,
+    D2Auth = 0x0C,
 
     /// Use simple request handling.
     ///
     /// Used for basic commands that don't require full D2 authentication.
-    Simple,
+    Simple = 0x0D,
 }
 
 impl RequestType {
@@ -167,19 +167,24 @@ impl Default for RequestType {
 ///
 /// # Variants
 ///
-/// - `EncryptEmpty`: No encryption (for public commands)
+/// - `NoEncrypt`: No encryption at all
+/// - `EncryptEmpty`: Encrypt with empty key
 /// - `EncryptD2Key`: Encrypt with D2 key (default, for secure commands)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
 pub enum EncryptType {
-    /// No encryption applied.
-    ///
-    /// Used for commands that don't contain sensitive data.
-    EncryptEmpty,
+    /// No encryption at all.
+    NoEncrypt = 0x00,
 
     /// Encrypt using the D2 key.
     ///
     /// This is the default and should be used for most secure communications.
-    EncryptD2Key,
+    EncryptD2Key = 0x01,
+
+    /// Encrypt with empty key.
+    ///
+    /// Used for commands that don't contain sensitive data.
+    EncryptEmpty = 0x02,
 }
 
 impl EncryptType {
@@ -188,13 +193,14 @@ impl EncryptType {
     /// Useful for validation and tooling.
     #[inline]
     pub const fn variants() -> &'static [EncryptType] {
-        &[EncryptType::EncryptEmpty, EncryptType::EncryptD2Key]
+        &[EncryptType::NoEncrypt, EncryptType::EncryptD2Key, EncryptType::EncryptEmpty]
     }
 
     /// Returns the string representation of this encryption type.
     #[inline]
     pub const fn as_str(&self) -> &'static str {
         match self {
+            EncryptType::NoEncrypt => "NoEncrypt",
             EncryptType::EncryptEmpty => "EncryptEmpty",
             EncryptType::EncryptD2Key => "EncryptD2Key",
         }

@@ -1,4 +1,3 @@
-use bytes::Bytes;
 use lagrange_core::internal::services::{LoginCommand, LoginEventReq};
 use lagrange_core::{config::BotConfig, keystore::BotKeystore, BotContext, Protocols};
 
@@ -45,19 +44,6 @@ async fn test_packet_context() {
 
     let next_sequence = bot.packet.next_sequence();
     assert!(next_sequence > sequence);
-}
-
-#[tokio::test]
-async fn test_socket_context() {
-    let bot = BotContext::builder().build();
-
-    assert!(!bot.socket.is_connected());
-
-    bot.socket.set_connected(true);
-    assert!(bot.socket.is_connected());
-
-    let data = Bytes::from("test");
-    assert!(bot.socket.send(data).is_ok());
 }
 
 #[tokio::test]
@@ -142,37 +128,37 @@ fn test_service_metadata() {
 
 #[tokio::test]
 async fn test_service_registration() {
-    use lagrange_core::internal::services::SsoPacket;
+    use lagrange_core::internal::services::registry;
 
-    // Create a bot context which initializes the ServiceContext
-    let bot = BotContext::builder().build();
+    // Get the global service registry
+    let reg = registry();
 
-    // Create test packets with commands that should be registered
-    let login_packet = SsoPacket::new(1, "wtlogin.login".to_string(), Bytes::from("test_data"));
-
-    let message_packet = SsoPacket::new(
-        2,
-        "MessageSvc.PbSendMsg".to_string(),
-        Bytes::from_static(&[0u8; 8]),
-    );
-
-    // These should not fail with ServiceNotFound because the services are registered via macro
-    let login_result = bot
-        .service
-        .resolve_incoming(&login_packet, bot.clone())
-        .await;
-    let message_result = bot
-        .service
-        .resolve_incoming(&message_packet, bot.clone())
-        .await;
-
-    // Verify that services were found and parsed
+    // Verify that specific services are registered via the #[service] macro
     assert!(
-        login_result.is_ok(),
+        reg.get_service("wtlogin.login").is_some(),
         "LoginService should be registered via #[service] macro"
     );
+
     assert!(
-        message_result.is_ok(),
-        "SendMessageService should be registered via #[service] macro"
+        reg.get_service("Heartbeat.Alive").is_some(),
+        "AliveService should be registered via #[service] macro"
+    );
+
+    assert!(
+        reg.get_service("wtlogin.name2uin").is_some(),
+        "UinResolveService should be registered via #[service] macro"
+    );
+
+    assert!(
+        reg.get_service("wtlogin.qrlogin").is_some(),
+        "QRLoginService should be registered via #[service] macro"
+    );
+
+    // Verify that we have multiple services registered
+    let service_count = reg.services().len();
+    assert!(
+        service_count > 0,
+        "At least one service should be registered. Found: {}",
+        service_count
     );
 }

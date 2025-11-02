@@ -6,6 +6,7 @@ pub mod internal;
 pub mod keystore;
 pub mod protocol;
 pub mod utils;
+mod business;
 
 pub use context::BotContext;
 pub use error::{Error, Result};
