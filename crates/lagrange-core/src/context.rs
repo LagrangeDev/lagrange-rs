@@ -87,7 +87,7 @@ impl Default for BotContextBuilder {
         Self {
             config: Some(BotConfig::default()),
             app_info: Some(BotAppInfo::default()),
-            keystore: Some(BotKeystore::default()),
+            keystore: Some(BotKeystore::new()),
         }
     }
 }

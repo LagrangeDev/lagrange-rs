@@ -473,6 +473,22 @@ fn generate_decode_value(ty: &Type) -> TokenStream {
         "Vec < u8 >" | "Vec<u8>" => {
             quote! { reader.read_length_delimited()? }
         }
+        "Bytes" | "bytes :: Bytes" | ":: bytes :: Bytes" => {
+            quote! {
+                {
+                    let data = reader.read_length_delimited()?;
+                    ::bytes::Bytes::from(data)
+                }
+            }
+        }
+        "BytesMut" | "bytes :: BytesMut" | ":: bytes :: BytesMut" => {
+            quote! {
+                {
+                    let data = reader.read_length_delimited()?;
+                    ::bytes::BytesMut::from(data.as_slice())
+                }
+            }
+        }
         _ => {
             quote! {
                 {
@@ -594,6 +610,8 @@ fn generate_field_decode(fields: &[FieldInfo], preserve_unknown: bool) -> TokenS
                 type_str_trimmed,
                 "u32" | "u64" | "i32" | "i64" | "bool" | "f32" | "f64" |
                 "String" | "Vec < u8 >" | "Vec<u8>" |
+                "Bytes" | "bytes :: Bytes" | ":: bytes :: Bytes" |
+                "BytesMut" | "bytes :: BytesMut" | ":: bytes :: BytesMut" |
                 "SInt32" | "SInt64" | "Fixed32" | "Fixed64" | "SFixed32" | "SFixed64" |
                 ":: lagrange_proto :: SInt32" | ":: lagrange_proto :: SInt64" |
                 ":: lagrange_proto :: Fixed32" | ":: lagrange_proto :: Fixed64" |
@@ -630,6 +648,8 @@ fn generate_field_decode(fields: &[FieldInfo], preserve_unknown: bool) -> TokenS
                 type_str_trimmed,
                 "u32" | "u64" | "i32" | "i64" | "bool" | "f32" | "f64" |
                 "String" | "Vec < u8 >" | "Vec<u8>" |
+                "Bytes" | "bytes :: Bytes" | ":: bytes :: Bytes" |
+                "BytesMut" | "bytes :: BytesMut" | ":: bytes :: BytesMut" |
                 "SInt32" | "SInt64" | "Fixed32" | "Fixed64" | "SFixed32" | "SFixed64" |
                 ":: lagrange_proto :: SInt32" | ":: lagrange_proto :: SInt64" |
                 ":: lagrange_proto :: Fixed32" | ":: lagrange_proto :: Fixed64" |

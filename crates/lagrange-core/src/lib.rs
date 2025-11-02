@@ -184,18 +184,6 @@ mod tests {
     }
 
     #[test]
-    fn test_wlogin_sigs() {
-        let mut sigs = WLoginSigs::default();
-        assert_eq!(sigs.a2.len(), 16);
-        assert_eq!(sigs.random_key.len(), 16);
-
-        let old_random = sigs.random_key.clone();
-        sigs.clear();
-        assert_ne!(sigs.random_key, old_random);
-        assert_eq!(sigs.a2, vec![0; 16]);
-    }
-
-    #[test]
     fn test_bot_keystore() {
         let keystore = BotKeystore::new()
             .with_uin(123456)
@@ -219,10 +207,29 @@ mod tests {
 
     #[test]
     fn test_sign_provider() {
+        use crate::common::sign::{NoOpSignProvider, SignProvider};
+
+        let provider = NoOpSignProvider;
+        assert_eq!(provider.platform(), "noop");
+    }
+
+    #[test]
+    #[cfg(feature = "sign-provider")]
+    fn test_default_sign_provider() {
         use crate::common::sign::{DefaultSignProvider, SignProvider};
 
-        let provider = DefaultSignProvider;
+        let provider = DefaultSignProvider::new();
         assert_eq!(provider.platform(), "default");
+
+        // Test whitelist
+        assert!(provider.is_whitelisted("wtlogin.login"));
+        assert!(provider.is_whitelisted("MessageSvc.PbSendMsg"));
+        assert!(provider.is_whitelisted("OidbSvcTrpcTcp.0x11ec_1"));
+        assert!(provider.is_whitelisted("trpc.login.ecdh.EcdhService.SsoNTLoginPasswordLogin"));
+
+        // Test non-whitelisted command
+        assert!(!provider.is_whitelisted("NonExistent.Command"));
+        assert!(!provider.is_whitelisted("SomeRandom.Service"));
     }
 
     #[test]

@@ -8,17 +8,13 @@ pub trait TlvWritable {
     #[inline]
     fn write_tlv<F>(&mut self, tag: u16, f: F)
     where
-        F: FnOnce(&mut Self),
+        F: FnOnce(&mut BinaryPacket),
     {
-        self.writer_mut().write(tag);
-
-        let length_pos = self.writer_mut().offset();
-        self.writer_mut().skip(2); // Reserve space for u16 length
-
-        f(self);
-
-        let length = (self.writer_mut().offset() - length_pos - 2) as u16;
-        self.writer_mut().write_at(length_pos, length).unwrap();
+        let writer = self.writer_mut();
+        writer.write(tag);
+        writer
+            .with_length_prefix::<u16, _, _>(false, 0, f)
+            .unwrap();
         self.increment_count();
     }
 }

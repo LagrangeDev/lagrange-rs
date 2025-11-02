@@ -1,5 +1,5 @@
 use crate::{
-    common::{sign::BoxedSignProvider, sign::DefaultSignProvider},
+    common::{sign::BoxedSignProvider, sign::NoOpSignProvider},
     protocol::Protocols,
 };
 use serde::{Deserialize, Serialize};
@@ -94,7 +94,7 @@ impl BotConfig {
     pub fn get_sign_provider(&self) -> BoxedSignProvider {
         self.sign_provider
             .clone()
-            .unwrap_or_else(|| Arc::new(DefaultSignProvider))
+            .unwrap_or_else(|| Arc::new(NoOpSignProvider))
     }
 }
 

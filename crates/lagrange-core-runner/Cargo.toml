@@ -13,7 +13,7 @@ path = "src/main.rs"
 
 [dependencies]
 # Core library
-lagrange-core = { path = "../lagrange-core" }
+lagrange-core = { path = "../lagrange-core", features = ["sign-provider"] }
 
 # Async runtime
 tokio.workspace = true

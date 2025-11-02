@@ -110,6 +110,74 @@ impl EllipticCurve {
         a.modpow(&(&self.p - 2), &self.p)
     }
 
+    /// Computes modular square root using Tonelli-Shanks algorithm
+    /// Returns None if n is not a quadratic residue
+    fn mod_sqrt(&self, n: &BigInt) -> Option<BigInt> {
+        let n = self.mod_positive(n);
+
+        // Special case: if n is 0
+        if n == BigInt::from(0) {
+            return Some(BigInt::from(0));
+        }
+
+        // Check if n is a quadratic residue using Euler's criterion: n^((p-1)/2) ≡ 1 (mod p)
+        let exp = (&self.p - 1) / 2;
+        let legendre = n.modpow(&exp, &self.p);
+        if legendre != BigInt::from(1) {
+            return None; // Not a quadratic residue
+        }
+
+        // For primes p ≡ 3 (mod 4), we can use the simple formula: y = n^((p+1)/4) mod p
+        if &self.p % 4 == BigInt::from(3) {
+            let exp = (&self.p + 1) / 4;
+            return Some(n.modpow(&exp, &self.p));
+        }
+
+        // General Tonelli-Shanks algorithm for p ≡ 1 (mod 4)
+        // Express p - 1 = 2^s * q where q is odd
+        let mut q = &self.p - 1;
+        let mut s = 0;
+        while &q % 2 == BigInt::from(0) {
+            q /= 2;
+            s += 1;
+        }
+
+        // Find a quadratic non-residue z
+        let mut z = BigInt::from(2);
+        while z.modpow(&exp, &self.p) != &self.p - 1 {
+            z += 1;
+        }
+
+        let mut m = s;
+        let mut c = z.modpow(&q, &self.p);
+        let mut t = n.modpow(&q, &self.p);
+        let mut r = n.modpow(&((&q + 1) / 2), &self.p);
+
+        loop {
+            if t == BigInt::from(0) {
+                return Some(BigInt::from(0));
+            }
+            if t == BigInt::from(1) {
+                return Some(r);
+            }
+
+            // Find the least i such that t^(2^i) = 1
+            let mut i = 1;
+            let mut temp = self.mod_positive(&(&t * &t));
+            while temp != BigInt::from(1) && i < m {
+                temp = self.mod_positive(&(&temp * &temp));
+                i += 1;
+            }
+
+            let two = BigInt::from(2);
+            let b = c.modpow(&two.pow((m - i - 1) as u32), &self.p);
+            m = i;
+            c = self.mod_positive(&(&b * &b));
+            t = self.mod_positive(&(&t * &c));
+            r = self.mod_positive(&(&r * &b));
+        }
+    }
+
     /// Adds two points on the elliptic curve
     fn point_add(&self, p1: &EllipticPoint, p2: &EllipticPoint) -> EllipticPoint {
         // Identity element checks
@@ -178,7 +246,6 @@ impl EllipticCurve {
             return true;
         }
 
-        // Verify: y² = x³ + ax + b (mod p)
         let left = self.mod_positive(&(&point.y * &point.y));
         let right =
             self.mod_positive(&(&point.x * &point.x * &point.x + &self.a * &point.x + &self.b));
@@ -217,7 +284,6 @@ impl EllipticPoint {
     pub fn to_compressed(&self, coord_size: usize) -> Vec<u8> {
         let mut result = Vec::with_capacity(1 + coord_size);
 
-        // Prefix: 0x02 if y is even, 0x03 if y is odd
         let y_bytes = self.y.to_bytes_be().1;
         let prefix = if y_bytes.last().map(|b| b & 1).unwrap_or(0) == 0 {
             0x02
@@ -227,7 +293,6 @@ impl EllipticPoint {
 
         result.push(prefix);
 
-        // Add x coordinate (padded to coord_size)
         let x_bytes = self.x.to_bytes_be().1;
         let padding = coord_size.saturating_sub(x_bytes.len());
         result.extend(std::iter::repeat_n(0, padding));
@@ -243,13 +308,11 @@ impl EllipticPoint {
 
         result.push(0x04);
 
-        // Add x coordinate (padded to coord_size)
         let x_bytes = self.x.to_bytes_be().1;
         let x_padding = coord_size.saturating_sub(x_bytes.len());
         result.extend(std::iter::repeat_n(0, x_padding));
         result.extend_from_slice(&x_bytes);
 
-        // Add y coordinate (padded to coord_size)
         let y_bytes = self.y.to_bytes_be().1;
         let y_padding = coord_size.saturating_sub(y_bytes.len());
         result.extend(std::iter::repeat_n(0, y_padding));
@@ -259,14 +322,13 @@ impl EllipticPoint {
     }
 
     /// Parses a point from SEC1 format (compressed or uncompressed)
-    pub fn from_bytes(data: &[u8], _curve: &EllipticCurve) -> Result<Self, &'static str> {
+    pub fn from_bytes(data: &[u8], curve: &EllipticCurve) -> Result<Self, &'static str> {
         if data.is_empty() {
             return Err("Empty point data");
         }
 
         match data[0] {
             0x04 => {
-                // Uncompressed format
                 if data.len() < 3 {
                     return Err("Invalid uncompressed point length");
                 }
@@ -278,10 +340,31 @@ impl EllipticPoint {
                 Ok(Self::new(x, y))
             }
             0x02 | 0x03 => {
-                // Compressed format - we'd need to decompress which requires
-                // solving y² = x³ + ax + b for y
-                // For now, return error
-                Err("Compressed point format not yet supported for parsing")
+                if data.len() < 2 {
+                    return Err("Invalid compressed point length");
+                }
+
+                let is_odd = data[0] == 0x03;
+                let x = BigInt::from_bytes_be(Sign::Plus, &data[1..]);
+
+                let x_cubed = curve.mod_positive(&(&x * &x * &x));
+                let ax = curve.mod_positive(&(&curve.a * &x));
+                let y_squared = curve.mod_positive(&(x_cubed + ax + &curve.b));
+
+                let y_candidate = curve
+                    .mod_sqrt(&y_squared)
+                    .ok_or("Point x-coordinate does not correspond to a valid curve point")?;
+
+                let y_bytes = y_candidate.to_bytes_be().1;
+                let candidate_is_odd = y_bytes.last().map(|b| b & 1 == 1).unwrap_or(false);
+
+                let y = if candidate_is_odd == is_odd {
+                    y_candidate
+                } else {
+                    curve.mod_positive(&(&curve.p - &y_candidate))
+                };
+
+                Ok(Self::new(x, y))
             }
             _ => Err("Invalid point format prefix"),
         }
@@ -292,20 +375,30 @@ impl EllipticPoint {
 pub struct EcdhProvider {
     curve: EllipticCurve,
     coord_size: usize,
+    secret: BigInt,
+    public: EllipticPoint,
 }
 
 impl EcdhProvider {
-    /// Creates a new ECDH provider with the specified curve
+    /// Creates a new ECDH provider with the specified curve and generates a random key pair
     pub fn new(curve_type: EllipticCurveType) -> Self {
-        match curve_type {
-            EllipticCurveType::Secp192K1 => Self {
-                curve: EllipticCurve::secp192k1(),
-                coord_size: 24, // 192 bits = 24 bytes
-            },
-            EllipticCurveType::Prime256V1 => Self {
-                curve: EllipticCurve::prime256v1(),
-                coord_size: 32, // 256 bits = 32 bytes
-            },
+        let (curve, coord_size) = match curve_type {
+            EllipticCurveType::Secp192K1 => (EllipticCurve::secp192k1(), 24), // 192 bits = 24 bytes
+            EllipticCurveType::Prime256V1 => (EllipticCurve::prime256v1(), 32), // 256 bits = 32 bytes
+        };
+
+        let mut rng = rand::thread_rng();
+        let mut secret_bytes = vec![0u8; coord_size];
+        rng.fill(&mut secret_bytes[..]);
+        let secret = BigInt::from_bytes_be(Sign::Plus, &secret_bytes);
+
+        let public = curve.scalar_multiply(&curve.g, &secret);
+
+        Self {
+            curve,
+            coord_size,
+            secret,
+            public,
         }
     }
 
@@ -317,6 +410,50 @@ impl EcdhProvider {
     /// Creates a provider for Secp192K1 curve
     pub fn secp192k1() -> Self {
         Self::new(EllipticCurveType::Secp192K1)
+    }
+
+    /// Creates a new ECDH provider with a custom secret key
+    pub fn with_secret(curve_type: EllipticCurveType, secret_bytes: &[u8]) -> Self {
+        let (curve, coord_size) = match curve_type {
+            EllipticCurveType::Secp192K1 => (EllipticCurve::secp192k1(), 24),
+            EllipticCurveType::Prime256V1 => (EllipticCurve::prime256v1(), 32),
+        };
+
+        // Parse secret from bytes
+        let secret = BigInt::from_bytes_be(Sign::Plus, secret_bytes);
+
+        // Compute public key
+        let public = curve.scalar_multiply(&curve.g, &secret);
+
+        Self {
+            curve,
+            coord_size,
+            secret,
+            public,
+        }
+    }
+
+    /// Returns a reference to the stored public key point
+    pub fn public_key(&self) -> &EllipticPoint {
+        &self.public
+    }
+
+    /// Returns the public key in byte format (compressed or uncompressed)
+    pub fn public_key_bytes(&self, compressed: bool) -> Vec<u8> {
+        if compressed {
+            self.public.to_compressed(self.coord_size)
+        } else {
+            self.public.to_uncompressed(self.coord_size)
+        }
+    }
+
+    /// Returns the secret key as bytes
+    pub fn secret_bytes(&self) -> Vec<u8> {
+        let (_, bytes) = self.secret.to_bytes_be();
+        let mut result = vec![0u8; self.coord_size];
+        let offset = self.coord_size.saturating_sub(bytes.len());
+        result[offset..].copy_from_slice(&bytes);
+        result
     }
 
     /// Generates a random secret key
@@ -345,29 +482,21 @@ impl EcdhProvider {
         }
     }
 
-    /// Performs ECDH key exchange
-    /// - secret: Your private key bytes
+    /// Performs ECDH key exchange using the stored secret key
     /// - peer_public: Peer's public key (point or bytes)
     /// - hash_with_md5: If true, returns MD5 hash of the shared x-coordinate
     pub fn key_exchange(
         &self,
-        secret: &[u8],
         peer_public: &[u8],
         hash_with_md5: bool,
     ) -> Result<Vec<u8>, &'static str> {
-        // Parse peer's public key
         let peer_point = EllipticPoint::from_bytes(peer_public, &self.curve)?;
 
-        // Verify peer's public key is on the curve
         if !self.curve.verify_point(&peer_point) {
             return Err("Peer public key is not on the curve");
         }
 
-        // Perform scalar multiplication
-        let secret_int = BigInt::from_bytes_be(Sign::Plus, secret);
-        let shared_point = self.curve.scalar_multiply(&peer_point, &secret_int);
-
-        // Use x-coordinate as shared secret
+        let shared_point = self.curve.scalar_multiply(&peer_point, &self.secret);
         let shared_secret = shared_point.x.to_bytes_be().1;
 
         if hash_with_md5 {
@@ -395,9 +524,7 @@ impl EcdhProvider {
 /// Elliptic curve type selector
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EllipticCurveType {
-    /// Secp192K1 (192-bit Koblitz curve)
     Secp192K1,
-    /// Prime256V1 (NIST P-256)
     Prime256V1,
 }
 
@@ -408,11 +535,8 @@ mod tests {
     #[test]
     fn test_curve_point_validation() {
         let curve = EllipticCurve::prime256v1();
-
-        // Generator should be on the curve
         assert!(curve.verify_point(&curve.g));
 
-        // Random point should not be on the curve
         let random_point = EllipticPoint::new(BigInt::from(12345), BigInt::from(67890));
         assert!(!curve.verify_point(&random_point));
     }
@@ -446,28 +570,20 @@ mod tests {
 
     #[test]
     fn test_ecdh_key_exchange() {
-        let provider = EcdhProvider::prime256v1();
+        // Create Alice's provider with her own keypair
+        let alice = EcdhProvider::prime256v1();
 
-        // Generate Alice's keypair
-        let alice_secret = provider.generate_secret();
-        let alice_public = provider.get_public_key(&alice_secret);
+        // Create Bob's provider with his own keypair
+        let bob = EcdhProvider::prime256v1();
 
-        // Generate Bob's keypair
-        let bob_secret = provider.generate_secret();
-        let bob_public = provider.get_public_key(&bob_secret);
+        // Get public keys in byte format
+        let alice_public_bytes = alice.public_key_bytes(false);
+        let bob_public_bytes = bob.public_key_bytes(false);
 
-        // Pack public keys
-        let alice_public_bytes = alice_public.to_uncompressed(32);
-        let bob_public_bytes = bob_public.to_uncompressed(32);
+        // Perform key exchange using stored secrets
+        let alice_shared = alice.key_exchange(&bob_public_bytes, false).unwrap();
 
-        // Perform key exchange
-        let alice_shared = provider
-            .key_exchange(&alice_secret, &bob_public_bytes, false)
-            .unwrap();
-
-        let bob_shared = provider
-            .key_exchange(&bob_secret, &alice_public_bytes, false)
-            .unwrap();
+        let bob_shared = bob.key_exchange(&alice_public_bytes, false).unwrap();
 
         // Both should compute the same shared secret
         assert_eq!(alice_shared, bob_shared);
@@ -499,5 +615,99 @@ mod tests {
         let deserialized = provider.unpack_public_key(&serialized).unwrap();
 
         assert_eq!(original, deserialized);
+    }
+
+    #[test]
+    fn test_compressed_point_deserialization() {
+        let curve = EllipticCurve::prime256v1();
+        let provider = EcdhProvider::prime256v1();
+
+        // Test with generator point
+        let original = curve.g.clone();
+        let compressed = original.to_compressed(32);
+        let deserialized = provider.unpack_public_key(&compressed).unwrap();
+
+        // Verify the deserialized point matches the original
+        assert_eq!(original.x, deserialized.x);
+        assert_eq!(original.y, deserialized.y);
+        assert!(curve.verify_point(&deserialized));
+    }
+
+    #[test]
+    fn test_compressed_point_round_trip() {
+        let curve = EllipticCurve::prime256v1();
+
+        // Test with multiple points
+        for scalar in [1, 2, 3, 7, 100] {
+            let point = curve.scalar_multiply(&curve.g, &BigInt::from(scalar));
+
+            // Compress and decompress
+            let compressed = point.to_compressed(32);
+            let decompressed = EllipticPoint::from_bytes(&compressed, &curve).unwrap();
+
+            // Verify the round trip
+            assert_eq!(point.x, decompressed.x);
+            assert_eq!(point.y, decompressed.y);
+            assert!(curve.verify_point(&decompressed));
+        }
+    }
+
+    #[test]
+    fn test_compressed_vs_uncompressed() {
+        let curve = EllipticCurve::prime256v1();
+
+        // Create a random point
+        let point = curve.scalar_multiply(&curve.g, &BigInt::from(42));
+
+        // Serialize in both formats
+        let compressed = point.to_compressed(32);
+        let uncompressed = point.to_uncompressed(32);
+
+        // Deserialize both
+        let from_compressed = EllipticPoint::from_bytes(&compressed, &curve).unwrap();
+        let from_uncompressed = EllipticPoint::from_bytes(&uncompressed, &curve).unwrap();
+
+        // Both should yield the same point
+        assert_eq!(from_compressed.x, from_uncompressed.x);
+        assert_eq!(from_compressed.y, from_uncompressed.y);
+        assert_eq!(from_compressed, point);
+        assert_eq!(from_uncompressed, point);
+    }
+
+    #[test]
+    fn test_ecdh_with_compressed_keys() {
+        // Create Alice's and Bob's providers
+        let alice = EcdhProvider::prime256v1();
+        let bob = EcdhProvider::prime256v1();
+
+        // Exchange compressed public keys
+        let alice_compressed = alice.public_key_bytes(true);
+        let bob_compressed = bob.public_key_bytes(true);
+
+        // Perform key exchange with compressed keys
+        let alice_shared = alice.key_exchange(&bob_compressed, false).unwrap();
+        let bob_shared = bob.key_exchange(&alice_compressed, false).unwrap();
+
+        // Both should compute the same shared secret
+        assert_eq!(alice_shared, bob_shared);
+    }
+
+    #[test]
+    fn test_secp192k1_compressed_points() {
+        let curve = EllipticCurve::secp192k1();
+
+        // Test with secp192k1 curve
+        for scalar in [1, 5, 13] {
+            let point = curve.scalar_multiply(&curve.g, &BigInt::from(scalar));
+
+            // Compress and decompress with 24-byte coordinates
+            let compressed = point.to_compressed(24);
+            let decompressed = EllipticPoint::from_bytes(&compressed, &curve).unwrap();
+
+            // Verify
+            assert_eq!(point.x, decompressed.x);
+            assert_eq!(point.y, decompressed.y);
+            assert!(curve.verify_point(&decompressed));
+        }
     }
 }

@@ -1,3 +1,4 @@
+use rand::RngCore;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -33,11 +34,11 @@ pub struct WLoginSigs {
 impl Default for WLoginSigs {
     fn default() -> Self {
         Self {
-            a2: vec![0; 16],
+            a2: vec![0; 0],
             a2_key: vec![0; 16],
-            d2: vec![0; 16],
+            d2: vec![0; 0],
             d2_key: vec![0; 16],
-            a1: vec![0; 16],
+            a1: vec![0; 0],
             tgtgt_key: vec![0; 16],
             ksid: None,
             super_key: None,
@@ -79,6 +80,11 @@ pub struct SessionState {
     pub qr_sig: Option<Vec<u8>>,
     #[serde(default)]
     pub tlv_cache: std::collections::HashMap<u16, Vec<u8>>,
+
+    #[serde(skip)]
+    pub ecdh_secret: Option<Vec<u8>>,
+    #[serde(skip)]
+    pub share_key: Option<Vec<u8>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -123,7 +129,12 @@ impl Default for BotKeystore {
 
 impl BotKeystore {
     pub fn new() -> Self {
-        Self::default()
+        let mut ks = Self::default();
+        rand::thread_rng().fill_bytes(&mut ks.guid);
+        rand::thread_rng().fill_bytes(&mut ks.sigs.random_key);
+        rand::thread_rng().fill_bytes(&mut ks.sigs.tgtgt_key);
+
+        ks
     }
 
     pub fn with_uin(mut self, uin: u64) -> Self {

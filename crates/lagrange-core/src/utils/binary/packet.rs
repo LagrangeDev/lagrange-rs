@@ -322,7 +322,8 @@ impl BinaryPacket {
 
     #[inline]
     pub fn skip(&mut self, count: usize) -> &mut Self {
-        self.offset = (self.offset + count).min(self.buffer.len());
+        self.ensure_capacity(count);
+        self.offset += count;
         self
     }
 
@@ -384,7 +385,13 @@ impl BinaryPacket {
             written -= size as i32;
         }
 
-        self.write_at(barrier, written as u32)?;
+        match size {
+            1 => self.write_at(barrier, written as u8)?,
+            2 => self.write_at(barrier, written as u16)?,
+            4 => self.write_at(barrier, written as u32)?,
+            8 => self.write_at(barrier, written as u64)?,
+            _ => panic!("Unsupported size for length prefix: {}", size),
+        }
 
         Ok(result)
     }
@@ -576,5 +583,56 @@ mod tests {
 
         let result: Result<u32> = packet.read();
         assert!(matches!(result, Err(PacketError::InsufficientData { .. })));
+    }
+
+    #[test]
+    fn test_length_prefix_with_different_types() {
+        // Test u8 prefix
+        let mut packet = BinaryPacket::with_capacity(64);
+        packet
+            .with_length_prefix::<u8, _, _>(false, 0, |w| {
+                w.write(0x1234u16);
+            })
+            .unwrap();
+        let mut read_packet = BinaryPacket::from(packet.to_vec());
+        let len: u8 = read_packet.read().unwrap();
+        assert_eq!(len, 2);
+        assert_eq!(read_packet.read::<u16>().unwrap(), 0x1234);
+
+        // Test u16 prefix
+        let mut packet = BinaryPacket::with_capacity(64);
+        packet
+            .with_length_prefix::<u16, _, _>(false, 0, |w| {
+                w.write(0x12345678u32);
+            })
+            .unwrap();
+        let mut read_packet = BinaryPacket::from(packet.to_vec());
+        let len: u16 = read_packet.read().unwrap();
+        assert_eq!(len, 4);
+        assert_eq!(read_packet.read::<u32>().unwrap(), 0x12345678);
+
+        // Test u32 prefix
+        let mut packet = BinaryPacket::with_capacity(64);
+        packet
+            .with_length_prefix::<u32, _, _>(false, 0, |w| {
+                w.write(0x123456789ABCDEFu64);
+            })
+            .unwrap();
+        let mut read_packet = BinaryPacket::from(packet.to_vec());
+        let len: u32 = read_packet.read().unwrap();
+        assert_eq!(len, 8);
+        assert_eq!(read_packet.read::<u64>().unwrap(), 0x123456789ABCDEFu64);
+
+        // Test u64 prefix with include_prefix=true
+        let mut packet = BinaryPacket::with_capacity(64);
+        packet
+            .with_length_prefix::<u64, _, _>(true, 0, |w| {
+                w.write(0x1234u16);
+            })
+            .unwrap();
+        let mut read_packet = BinaryPacket::from(packet.to_vec());
+        let len: u64 = read_packet.read().unwrap();
+        assert_eq!(len, 2 + 8); // data length + prefix size
+        assert_eq!(read_packet.read::<u16>().unwrap(), 0x1234);
     }
 }

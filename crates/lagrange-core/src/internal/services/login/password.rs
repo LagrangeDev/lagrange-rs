@@ -71,7 +71,7 @@ impl From<u8> for States {
 
 /// Common parsing logic for login responses
 fn parse_login_response(
-    packet: &WtLogin,
+    packet: &mut WtLogin,
     input: Bytes,
     context: Arc<BotContext>,
     ret_code: &mut u8,
@@ -183,16 +183,16 @@ define_service! {
         }
 
         async fn parse(input: Bytes, context: Arc<BotContext>) -> Result<EventMessage> {
-            let keystore = context.keystore.read().expect("RwLock poisoned");
+            let mut keystore = context.keystore.write().expect("RwLock poisoned");
             let app_info = context.app_info.inner();
-            let packet = WtLogin::new(&keystore, app_info)
+            let mut packet = WtLogin::new(&mut keystore, app_info)
                 .map_err(|e| crate::error::Error::ParseError(e.to_string()))?;
 
             let mut ret_code = 0;
             let mut error = None;
             let mut tlvs = HashMap::new();
 
-            parse_login_response(&packet, input, context.clone(), &mut ret_code, &mut error, &mut tlvs)?;
+            parse_login_response(&mut packet, input, context.clone(), &mut ret_code, &mut error, &mut tlvs)?;
 
             // Return appropriate response based on protocol
             let protocol = context.config.protocol;
@@ -220,9 +220,9 @@ define_service! {
         }
 
         async fn build(event: EventMessage, context: Arc<BotContext>) -> Result<Bytes> {
-            let keystore = context.keystore.read().expect("RwLock poisoned");
+            let mut keystore = context.keystore.write().expect("RwLock poisoned");
             let app_info = context.app_info.inner();
-            let packet = WtLogin::new(&keystore, app_info)
+            let packet = WtLogin::new(&mut keystore, app_info)
                 .map_err(|e| crate::error::Error::BuildError(e.to_string()))?;
 
             // Try PC event first

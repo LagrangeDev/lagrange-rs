@@ -42,10 +42,10 @@ define_service! {
         }
 
         async fn parse(input: Bytes, context: Arc<BotContext>) -> Result<EventMessage> {
-            let keystore = context.keystore.read().expect("RwLock poisoned");
+            let mut keystore = context.keystore.write().expect("RwLock poisoned");
             let app_info = context.app_info.inner();
 
-            let packet = WtLogin::new(&keystore, app_info)
+            let packet = WtLogin::new(&mut keystore, app_info)
                 .map_err(|e| crate::error::Error::ParseError(e.to_string()))?;
 
             let (command, payload) = packet
@@ -136,10 +136,10 @@ define_service! {
         }
 
         async fn build(event: EventMessage, context: Arc<BotContext>) -> Result<Bytes> {
-            let keystore = context.keystore.read().expect("RwLock poisoned");
+            let mut keystore = context.keystore.write().expect("RwLock poisoned");
             let app_info = context.app_info.inner();
 
-            let packet = WtLogin::new(&keystore, app_info)
+            let packet = WtLogin::new(&mut keystore, app_info)
                 .map_err(|e| crate::error::Error::BuildError(e.to_string()))?;
 
             // Dispatch based on event type

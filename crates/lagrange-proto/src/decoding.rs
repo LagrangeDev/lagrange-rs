@@ -169,6 +169,21 @@ impl ProtoDecode for Bytes {
     }
 }
 
+impl ProtoDecode for bytes::BytesMut {
+    #[inline]
+    fn decode(buf: &[u8]) -> Result<Self, DecodeError> {
+        let (len, varint_len) = varint::decode::<u32>(buf)?;
+        let len = len as usize;
+
+        if buf.len() < varint_len + len {
+            return Err(DecodeError::UnexpectedEof);
+        }
+
+        let bytes = &buf[varint_len..varint_len + len];
+        Ok(bytes::BytesMut::from(bytes))
+    }
+}
+
 #[inline]
 pub fn decode_length_delimited(buf: &[u8]) -> Result<(&[u8], usize), DecodeError> {
     let (len, varint_len) = varint::decode::<u32>(buf)?;
@@ -389,5 +404,70 @@ mod tests {
         reader.skip_field(wire_type).unwrap();
 
         assert!(!reader.has_remaining());
+    }
+
+    #[test]
+    fn test_bytes_types_roundtrip() {
+        use crate::encoding::ProtoEncode;
+
+        // Test Vec<u8>
+        let data_vec = vec![1u8, 2, 3, 4, 5];
+        let mut buf = BytesMut::new();
+        data_vec.encode(&mut buf).unwrap();
+        let decoded_vec = Vec::<u8>::decode(&buf).unwrap();
+        assert_eq!(data_vec, decoded_vec);
+
+        // Test Bytes
+        let data_bytes = Bytes::from_static(&[10, 20, 30, 40, 50]);
+        let mut buf = BytesMut::new();
+        data_bytes.encode(&mut buf).unwrap();
+        let decoded_bytes = Bytes::decode(&buf).unwrap();
+        assert_eq!(data_bytes, decoded_bytes);
+
+        // Test BytesMut
+        let data_bytes_mut = BytesMut::from(&[100, 200, 255][..]);
+        let mut buf = BytesMut::new();
+        data_bytes_mut.encode(&mut buf).unwrap();
+        let decoded_bytes_mut = bytes::BytesMut::decode(&buf).unwrap();
+        assert_eq!(data_bytes_mut, decoded_bytes_mut);
+
+        // Test empty bytes
+        let empty_vec: Vec<u8> = vec![];
+        let mut buf = BytesMut::new();
+        empty_vec.encode(&mut buf).unwrap();
+        let decoded_empty = Vec::<u8>::decode(&buf).unwrap();
+        assert_eq!(empty_vec, decoded_empty);
+
+        let empty_bytes = Bytes::new();
+        let mut buf = BytesMut::new();
+        empty_bytes.encode(&mut buf).unwrap();
+        let decoded_empty_bytes = Bytes::decode(&buf).unwrap();
+        assert_eq!(empty_bytes, decoded_empty_bytes);
+    }
+
+    #[test]
+    fn test_bytes_cross_type_compatibility() {
+        use crate::encoding::ProtoEncode;
+
+        // Encode Vec<u8>, decode as Bytes
+        let data_vec = vec![1u8, 2, 3, 4, 5];
+        let mut buf = BytesMut::new();
+        data_vec.encode(&mut buf).unwrap();
+        let decoded_bytes = Bytes::decode(&buf).unwrap();
+        assert_eq!(&data_vec[..], &decoded_bytes[..]);
+
+        // Encode Bytes, decode as Vec<u8>
+        let data_bytes = Bytes::from_static(&[10, 20, 30, 40, 50]);
+        let mut buf = BytesMut::new();
+        data_bytes.encode(&mut buf).unwrap();
+        let decoded_vec = Vec::<u8>::decode(&buf).unwrap();
+        assert_eq!(&data_bytes[..], &decoded_vec[..]);
+
+        // Encode BytesMut, decode as Vec<u8>
+        let data_bytes_mut = BytesMut::from(&[100, 200, 255][..]);
+        let mut buf = BytesMut::new();
+        data_bytes_mut.encode(&mut buf).unwrap();
+        let decoded_vec = Vec::<u8>::decode(&buf).unwrap();
+        assert_eq!(&data_bytes_mut[..], &decoded_vec[..]);
     }
 }

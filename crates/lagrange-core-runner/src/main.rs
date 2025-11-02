@@ -1,7 +1,12 @@
 use anyhow::Result;
-use lagrange_core::{config::BotConfig, keystore::BotKeystore, protocol::Protocols, BotContext};
+use lagrange_core::{
+    common::sign::{DefaultSignProvider, SignProvider},
+    config::BotConfig,
+    protocol::Protocols,
+    BotContext,
+};
 use std::sync::Arc;
-use tracing::{error, info, warn, Level};
+use tracing::{error, info, Level};
 use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
 const BOT_UIN: Option<u64> = None;
@@ -20,28 +25,21 @@ async fn main() -> Result<()> {
     info!("Protocol: {:?}", BOT_PROTOCOL);
     info!("Log Level: {:?}", LOG_LEVEL);
 
+    // Initialize sign provider
+    let sign_provider = Arc::new(DefaultSignProvider::new());
+    info!("Using sign provider: {}", sign_provider.platform());
+
     let config = BotConfig::builder()
         .protocol(BOT_PROTOCOL)
         .verbose(BOT_VERBOSE)
         .auto_reconnect(AUTO_RECONNECT)
         .auto_re_login(AUTO_RELOGIN)
+        .sign_provider(sign_provider)
         .build();
-
-    let keystore = match BOT_UIN {
-        Some(uin) => {
-            info!("Bot UIN configured: {}", uin);
-            BotKeystore::default().with_uin(uin)
-        }
-        None => {
-            warn!("No BOT_UIN configured - set it in main.rs");
-            BotKeystore::default()
-        }
-    };
 
     info!("Building bot context...");
     let context = BotContext::builder()
         .config(config)
-        .keystore(keystore)
         .build();
 
     setup_event_handlers(context.clone());
@@ -50,9 +48,10 @@ async fn main() -> Result<()> {
     info!("Press Ctrl+C to shutdown gracefully");
 
     context.connect().await.expect("Failed to establish initial connection");
-
-    // Start connection monitor for auto-reconnect
     context.clone().start_connection_monitor();
+
+    let qrcode = context.fetch_qrcode().await?;
+    info!("QR Code URL: {}", qrcode.len());
 
     match tokio::signal::ctrl_c().await {
         Ok(()) => {

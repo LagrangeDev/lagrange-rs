@@ -26,19 +26,37 @@ pub enum EncryptMethod {
 
 /// WtLogin packet builder for QQ login operations
 pub struct WtLogin<'a> {
+    ecdh: EcdhProvider,
     share_key: Vec<u8>,
-    keystore: &'a BotKeystore,
+    keystore: &'a mut BotKeystore,
     app_info: &'a AppInfo,
 }
 
 impl<'a> WtLogin<'a> {
-    pub fn new(keystore: &'a BotKeystore, app_info: &'a AppInfo) -> Result<Self, &'static str> {
-        let ecdh_provider = EcdhProvider::new(EllipticCurveType::Secp192K1);
+    pub fn new(keystore: &'a mut BotKeystore, app_info: &'a AppInfo) -> Result<Self, &'static str> {
+        let (ecdh, share_key) = if let (Some(ref secret), Some(ref share_key)) =
+            (&keystore.state.ecdh_secret, &keystore.state.share_key) {
+            tracing::debug!("Reusing existing ECDH and share_key from session state");
+            let ecdh = EcdhProvider::with_secret(EllipticCurveType::Secp192K1, secret);
+            (ecdh, share_key.clone())
+        } else {
+            tracing::debug!("Creating new ECDH and share_key for session");
+            let ecdh = EcdhProvider::new(EllipticCurveType::Secp192K1);
+            let share_key = ecdh.key_exchange(&SERVER_PUBLIC_KEY, true)?;
 
-        let secret = ecdh_provider.generate_secret();
-        let share_key = ecdh_provider.key_exchange(&secret, &SERVER_PUBLIC_KEY, true)?;
+            tracing::debug!(
+                "WtLogin share_key generated: {}",
+                share_key.iter().map(|b| format!("{:02x}", b)).collect::<String>()
+            );
+
+            keystore.state.ecdh_secret = Some(ecdh.secret_bytes());
+            keystore.state.share_key = Some(share_key.clone());
+
+            (ecdh, share_key)
+        };
 
         Ok(Self {
+            ecdh,
             share_key,
             keystore,
             app_info,
@@ -371,7 +389,7 @@ impl<'a> WtLogin<'a> {
                 w.write(0u32);
                 w.write(2u8);
                 w.write(0i16); // insId
-                w.write(self.app_info.app_client_version as i32); // insId
+                w.write(self.app_info.app_client_version as u16); // insId
                 w.write(0u32); // retryTime
                 self.build_encrypt_head(w, use_wt_session);
                 w.write_bytes(&encrypted);
@@ -397,7 +415,7 @@ impl<'a> WtLogin<'a> {
         req_body
             .with_length_prefix::<u16, _, _>(true, 1, |w| {
                 w.write(command);
-                w.skip(21);
+                w.write_bytes(&*vec![0u8; 21]); // randKey
                 w.write(3u8); // flag, 4 for oidb_func, 1 for register, 3 for code_2d, 2 for name_func, 5 for devlock
                 w.write(0x00i16); // close
                 w.write(0x32i16); // Version Code: 50
@@ -455,17 +473,13 @@ impl<'a> WtLogin<'a> {
             writer.write(1u8);
             writer.write_bytes(&self.keystore.sigs.random_key);
             writer.write(0x102i16); // encrypt type
-
-            // Pack ECDH public key
-            // TODO: Get the actual public key from keystore
-            // For now, use a placeholder
-            writer.write_str("", Prefix::INT16);
+            let public_key = self.ecdh.public_key_bytes(true);
+            writer.write_bytes_with_prefix(&public_key, Prefix::INT16);
         }
     }
 
     pub fn parse(&self, input: &[u8]) -> Result<(u16, Vec<u8>), &'static str> {
         let mut reader = BinaryPacket::from_slice(input);
-
         let _header = reader.read::<u8>().map_err(|_| "Failed to read header")?;
         let _length = reader.read::<u16>().map_err(|_| "Failed to read length")?;
         let _version = reader.read::<u16>().map_err(|_| "Failed to read version")?;
@@ -485,34 +499,50 @@ impl<'a> WtLogin<'a> {
             return Err("No encrypted data");
         }
 
-        let encrypted = &reader
+        let mut encrypted = reader
             .read_bytes(remaining - 1)
-            .map_err(|_| "Failed to read encrypted data")?;
+            .map_err(|_| "Failed to read encrypted data")?
+            .to_vec();
 
-        let key = match encrypt_type {
+        let (key, owned_key, encrypted_override) = match encrypt_type {
             0 => {
                 if state == 180 {
-                    &self.keystore.sigs.random_key
+                    (&self.keystore.sigs.random_key as &[u8], None, None)
                 } else {
-                    &self.share_key
+                    (&self.share_key as &[u8], None, None)
                 }
             }
-            3 => self
-                .keystore
-                .sigs
-                .wt_session_ticket_key
-                .as_ref()
-                .unwrap_or(&self.keystore.sigs.random_key),
+            3 => (
+                self.keystore
+                    .sigs
+                    .wt_session_ticket_key
+                    .as_ref()
+                    .unwrap_or(&self.keystore.sigs.random_key) as &[u8],
+                None,
+                None,
+            ),
             4 => {
-                // TODO: Handle type 4 with ECDH key exchange
-                &self.share_key
+                let decrypted = tea::decrypt(&encrypted, &self.share_key[..16].try_into().unwrap())
+                    .map_err(|_| "Failed to decrypt for ecdh key")?;
+                let mut inner_reader = BinaryPacket::from_vec(decrypted);
+                let server_public_key = inner_reader
+                    .read_bytes_with_prefix(Prefix::INT16)
+                    .map_err(|_| "Failed to read server public key")?;
+
+                let exchange_key = self.ecdh.key_exchange(server_public_key, true)?;
+                let new_encrypted = inner_reader.read_remaining().to_vec();
+                (&[] as &[u8], Some(exchange_key), Some(new_encrypted))
             }
             _ => return Err("Unknown encrypt type"),
         };
 
-        let key_array: [u8; 16] = key[..16].try_into().map_err(|_| "Invalid key length")?;
-        let decrypted =
-            tea::decrypt(encrypted, &key_array).map_err(|_| "Failed to decrypt")?;
+        if let Some(new_encrypted) = encrypted_override {
+            encrypted = new_encrypted;
+        }
+
+        let final_key = owned_key.as_ref().map(|v| v.as_slice()).unwrap_or(key);
+        let key_array: [u8; 16] = final_key[..16].try_into().map_err(|_| "Invalid key length")?;
+        let decrypted = tea::decrypt(&encrypted, &key_array).map_err(|_| "Failed to decrypt")?;
 
         Ok((command, decrypted))
     }

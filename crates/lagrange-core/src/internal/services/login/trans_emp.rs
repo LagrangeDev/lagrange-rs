@@ -16,7 +16,7 @@ define_service! {
         encrypt_type: EncryptType::EncryptEmpty,
 
         events {
-            TransEmp31Event(protocol = Protocols::ANDROID) {
+            TransEmp31Event(protocol = Protocols::PC) {
                 request TransEmp31EventReq {
                     unusual_sig: Option<Vec<u8>>,
                 }
@@ -27,7 +27,7 @@ define_service! {
                 }
             }
 
-            TransEmp12Event(protocol = Protocols::ANDROID) {
+            TransEmp12Event(protocol = Protocols::PC) {
                 request TransEmp12EventReq {}
                 response TransEmp12EventResp {
                     ret_code: u8,
@@ -41,14 +41,17 @@ define_service! {
         }
 
         async fn parse(input: Bytes, context: Arc<BotContext>) -> Result<EventMessage> {
-            let keystore = context.keystore.read().expect("RwLock poisoned");
+            let mut keystore = context.keystore.write().expect("RwLock poisoned");
             let app_info = context.app_info.inner();
 
-            let packet = WtLogin::new(&keystore, app_info)
+            let packet = WtLogin::new(&mut keystore, app_info)
+                .map_err(|e| crate::error::Error::ParseError(e.to_string()))?;
+
+            let (_wtlogin_cmd, wtlogin) = packet.parse(input.as_ref())
                 .map_err(|e| crate::error::Error::ParseError(e.to_string()))?;
 
             let (command, payload) = packet
-                .parse_code_2d_packet(input.as_ref())
+                .parse_code_2d_packet(wtlogin.as_ref())
                 .map_err(|e| crate::error::Error::ParseError(e.to_string()))?;
 
             match command {
@@ -125,10 +128,10 @@ define_service! {
         }
 
         async fn build(event: EventMessage, context: Arc<BotContext>) -> Result<Bytes> {
-            let keystore = context.keystore.read().expect("RwLock poisoned");
+            let mut keystore = context.keystore.write().expect("RwLock poisoned");
             let app_info = context.app_info.inner();
 
-            let packet = WtLogin::new(&keystore, app_info)
+            let packet = WtLogin::new(&mut keystore, app_info)
                 .map_err(|e| crate::error::Error::BuildError(e.to_string()))?;
 
             if let Some(input) = event.downcast_ref::<TransEmp31EventReq>() {

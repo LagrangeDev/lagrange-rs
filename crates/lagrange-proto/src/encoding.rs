@@ -349,4 +349,64 @@ mod tests {
         assert_eq!("hello".encoded_size(), 6);
         assert_eq!(true.encoded_size(), 1);
     }
+
+    #[test]
+    fn test_bytes_types_encoding() {
+        // Test Vec<u8>
+        let data_vec = vec![1u8, 2, 3, 4, 5];
+        let mut buf = BytesMut::new();
+        data_vec.encode(&mut buf).unwrap();
+        assert_eq!(buf.len(), 1 + data_vec.len()); // varint length + data
+        assert_eq!(data_vec.encoded_size(), 1 + data_vec.len());
+
+        // Test Bytes
+        let data_bytes = Bytes::from_static(&[10, 20, 30, 40, 50]);
+        let mut buf = BytesMut::new();
+        data_bytes.encode(&mut buf).unwrap();
+        assert_eq!(buf.len(), 1 + data_bytes.len());
+        assert_eq!(data_bytes.encoded_size(), 1 + data_bytes.len());
+
+        // Test BytesMut
+        let data_bytes_mut = BytesMut::from(&[100, 200, 255][..]);
+        let mut buf = BytesMut::new();
+        data_bytes_mut.encode(&mut buf).unwrap();
+        assert_eq!(buf.len(), 1 + data_bytes_mut.len());
+        assert_eq!(data_bytes_mut.encoded_size(), 1 + data_bytes_mut.len());
+
+        // Test slice
+        let data_slice = &[1u8, 2, 3][..];
+        let mut buf = BytesMut::new();
+        data_slice.encode(&mut buf).unwrap();
+        assert_eq!(buf.len(), 1 + data_slice.len());
+        assert_eq!(data_slice.encoded_size(), 1 + data_slice.len());
+
+        // Test empty bytes
+        let empty: Vec<u8> = vec![];
+        let mut buf = BytesMut::new();
+        empty.encode(&mut buf).unwrap();
+        assert_eq!(buf.len(), 1); // Just the zero-length varint
+        assert_eq!(empty.encoded_size(), 1);
+    }
+
+    #[test]
+    fn test_bytes_types_consistency() {
+        // All bytes types should produce identical encoded output
+        let data = vec![1u8, 2, 3, 4, 5];
+
+        let mut buf1 = BytesMut::new();
+        data.encode(&mut buf1).unwrap();
+
+        let mut buf2 = BytesMut::new();
+        Bytes::from(data.clone()).encode(&mut buf2).unwrap();
+
+        let mut buf3 = BytesMut::new();
+        BytesMut::from(&data[..]).encode(&mut buf3).unwrap();
+
+        let mut buf4 = BytesMut::new();
+        data.as_slice().encode(&mut buf4).unwrap();
+
+        assert_eq!(buf1, buf2);
+        assert_eq!(buf2, buf3);
+        assert_eq!(buf3, buf4);
+    }
 }
