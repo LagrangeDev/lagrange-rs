@@ -3,44 +3,39 @@ use aes_gcm::{
     Aes128Gcm, Aes256Gcm, Nonce,
 };
 
-/// AES-GCM encryption provider
-/// Supports both AES-128-GCM and AES-256-GCM
-pub struct AesGcmProvider;
+/// Encrypts plaintext using AES-128-GCM with the given 16-byte key
+/// Returns: [12-byte IV][ciphertext][16-byte auth tag]
+pub fn encrypt_128(plaintext: &[u8], key: &[u8; 16]) -> Result<Vec<u8>, &'static str> {
+    let cipher = Aes128Gcm::new(key.into());
+    encrypt_internal(&cipher, plaintext)
+}
 
-impl AesGcmProvider {
-    /// Encrypts plaintext using AES-128-GCM with the given 16-byte key
-    /// Returns: [12-byte IV][ciphertext][16-byte auth tag]
-    pub fn encrypt_128(plaintext: &[u8], key: &[u8; 16]) -> Result<Vec<u8>, &'static str> {
-        let cipher = Aes128Gcm::new(key.into());
-        Self::encrypt_internal(&cipher, plaintext)
-    }
+/// Encrypts plaintext using AES-256-GCM with the given 32-byte key
+/// Returns: [12-byte IV][ciphertext][16-byte auth tag]
+pub fn encrypt_256(plaintext: &[u8], key: &[u8; 32]) -> Result<Vec<u8>, &'static str> {
+    let cipher = Aes256Gcm::new(key.into());
+    encrypt_internal(&cipher, plaintext)
+}
 
-    /// Encrypts plaintext using AES-256-GCM with the given 32-byte key
-    /// Returns: [12-byte IV][ciphertext][16-byte auth tag]
-    pub fn encrypt_256(plaintext: &[u8], key: &[u8; 32]) -> Result<Vec<u8>, &'static str> {
-        let cipher = Aes256Gcm::new(key.into());
-        Self::encrypt_internal(&cipher, plaintext)
-    }
+/// Decrypts ciphertext using AES-128-GCM with the given 16-byte key
+/// Input format: [12-byte IV][ciphertext][16-byte auth tag]
+pub fn decrypt_128(ciphertext: &[u8], key: &[u8; 16]) -> Result<Vec<u8>, &'static str> {
+    let cipher = Aes128Gcm::new(key.into());
+    decrypt_internal(&cipher, ciphertext)
+}
 
-    /// Decrypts ciphertext using AES-128-GCM with the given 16-byte key
-    /// Input format: [12-byte IV][ciphertext][16-byte auth tag]
-    pub fn decrypt_128(ciphertext: &[u8], key: &[u8; 16]) -> Result<Vec<u8>, &'static str> {
-        let cipher = Aes128Gcm::new(key.into());
-        Self::decrypt_internal(&cipher, ciphertext)
-    }
+/// Decrypts ciphertext using AES-256-GCM with the given 32-byte key
+/// Input format: [12-byte IV][ciphertext][16-byte auth tag]
+pub fn decrypt_256(ciphertext: &[u8], key: &[u8; 32]) -> Result<Vec<u8>, &'static str> {
+    let cipher = Aes256Gcm::new(key.into());
+    decrypt_internal(&cipher, ciphertext)
+}
 
-    /// Decrypts ciphertext using AES-256-GCM with the given 32-byte key
-    /// Input format: [12-byte IV][ciphertext][16-byte auth tag]
-    pub fn decrypt_256(ciphertext: &[u8], key: &[u8; 32]) -> Result<Vec<u8>, &'static str> {
-        let cipher = Aes256Gcm::new(key.into());
-        Self::decrypt_internal(&cipher, ciphertext)
-    }
-
-    /// Internal encryption function
-    fn encrypt_internal<C: Aead + AeadCore>(
-        cipher: &C,
-        plaintext: &[u8],
-    ) -> Result<Vec<u8>, &'static str> {
+/// Internal encryption function
+fn encrypt_internal<C: Aead + AeadCore>(
+    cipher: &C,
+    plaintext: &[u8],
+) -> Result<Vec<u8>, &'static str> {
         // Generate random 12-byte nonce
         let nonce = C::generate_nonce(&mut OsRng);
 
@@ -55,14 +50,14 @@ impl AesGcmProvider {
         result.extend_from_slice(&ciphertext);
 
         Ok(result)
-    }
+}
 
-    /// Internal decryption function
-    #[allow(deprecated)] // Suppressing GenericArray::from_slice deprecation until aes-gcm upgrades to generic-array 1.x
-    fn decrypt_internal<C: Aead + AeadCore>(
-        cipher: &C,
-        data: &[u8],
-    ) -> Result<Vec<u8>, &'static str> {
+/// Internal decryption function
+#[allow(deprecated)] // Suppressing GenericArray::from_slice deprecation until aes-gcm upgrades to generic-array 1.x
+fn decrypt_internal<C: Aead + AeadCore>(
+    cipher: &C,
+    data: &[u8],
+) -> Result<Vec<u8>, &'static str> {
         // Minimum length: 12-byte nonce + 16-byte tag
         if data.len() < 28 {
             return Err("Invalid ciphertext length");
@@ -78,7 +73,6 @@ impl AesGcmProvider {
         cipher
             .decrypt(nonce, ciphertext)
             .map_err(|_| "Decryption or authentication failed")
-    }
 }
 
 #[cfg(test)]
@@ -90,10 +84,10 @@ mod tests {
         let key = [0x42u8; 16];
         let plaintext = b"Hello, World! This is a test message.";
 
-        let encrypted = AesGcmProvider::encrypt_128(plaintext, &key).unwrap();
+        let encrypted = encrypt_128(plaintext, &key).unwrap();
         assert!(encrypted.len() >= plaintext.len() + 28); // nonce + tag
 
-        let decrypted = AesGcmProvider::decrypt_128(&encrypted, &key).unwrap();
+        let decrypted = decrypt_128(&encrypted, &key).unwrap();
         assert_eq!(decrypted, plaintext);
     }
 
@@ -102,10 +96,10 @@ mod tests {
         let key = [0x33u8; 32];
         let plaintext = b"Testing AES-256-GCM encryption and decryption.";
 
-        let encrypted = AesGcmProvider::encrypt_256(plaintext, &key).unwrap();
+        let encrypted = encrypt_256(plaintext, &key).unwrap();
         assert!(encrypted.len() >= plaintext.len() + 28); // nonce + tag
 
-        let decrypted = AesGcmProvider::decrypt_256(&encrypted, &key).unwrap();
+        let decrypted = decrypt_256(&encrypted, &key).unwrap();
         assert_eq!(decrypted, plaintext);
     }
 
@@ -114,8 +108,8 @@ mod tests {
         let key = [0x11u8; 16];
         let plaintext = b"";
 
-        let encrypted = AesGcmProvider::encrypt_128(plaintext, &key).unwrap();
-        let decrypted = AesGcmProvider::decrypt_128(&encrypted, &key).unwrap();
+        let encrypted = encrypt_128(plaintext, &key).unwrap();
+        let decrypted = decrypt_128(&encrypted, &key).unwrap();
 
         assert_eq!(decrypted, plaintext);
     }
@@ -126,8 +120,8 @@ mod tests {
         let key2 = [0x43u8; 16];
         let plaintext = b"Secret message";
 
-        let encrypted = AesGcmProvider::encrypt_128(plaintext, &key1).unwrap();
-        let result = AesGcmProvider::decrypt_128(&encrypted, &key2);
+        let encrypted = encrypt_128(plaintext, &key1).unwrap();
+        let result = decrypt_128(&encrypted, &key2);
 
         assert!(result.is_err());
     }
@@ -137,14 +131,14 @@ mod tests {
         let key = [0x55u8; 16];
         let plaintext = b"Original message";
 
-        let mut encrypted = AesGcmProvider::encrypt_128(plaintext, &key).unwrap();
+        let mut encrypted = encrypt_128(plaintext, &key).unwrap();
 
         // Tamper with the ciphertext
         if encrypted.len() > 15 {
             encrypted[15] ^= 0x01;
         }
 
-        let result = AesGcmProvider::decrypt_128(&encrypted, &key);
+        let result = decrypt_128(&encrypted, &key);
         assert!(result.is_err());
     }
 
@@ -153,7 +147,7 @@ mod tests {
         let key = [0x77u8; 16];
         let invalid = vec![0u8; 20]; // Too short
 
-        let result = AesGcmProvider::decrypt_128(&invalid, &key);
+        let result = decrypt_128(&invalid, &key);
         assert!(result.is_err());
     }
 
@@ -162,15 +156,15 @@ mod tests {
         let key = [0x88u8; 16];
         let plaintext = b"Same plaintext";
 
-        let encrypted1 = AesGcmProvider::encrypt_128(plaintext, &key).unwrap();
-        let encrypted2 = AesGcmProvider::encrypt_128(plaintext, &key).unwrap();
+        let encrypted1 = encrypt_128(plaintext, &key).unwrap();
+        let encrypted2 = encrypt_128(plaintext, &key).unwrap();
 
         // Different nonces should result in different ciphertexts
         assert_ne!(encrypted1, encrypted2);
 
         // But both should decrypt to the same plaintext
-        let decrypted1 = AesGcmProvider::decrypt_128(&encrypted1, &key).unwrap();
-        let decrypted2 = AesGcmProvider::decrypt_128(&encrypted2, &key).unwrap();
+        let decrypted1 = decrypt_128(&encrypted1, &key).unwrap();
+        let decrypted2 = decrypt_128(&encrypted2, &key).unwrap();
         assert_eq!(decrypted1, plaintext);
         assert_eq!(decrypted2, plaintext);
     }

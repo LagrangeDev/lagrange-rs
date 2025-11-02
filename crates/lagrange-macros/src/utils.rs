@@ -1,6 +1,5 @@
 use syn::Path;
 
-/// Validates a path has proper structure (not empty, has segments)
 pub(crate) fn validate_path_structure(path: &Path, param_name: &str) -> syn::Result<()> {
     if path.segments.is_empty() {
         return Err(syn::Error::new_spanned(
@@ -11,7 +10,6 @@ pub(crate) fn validate_path_structure(path: &Path, param_name: &str) -> syn::Res
     Ok(())
 }
 
-/// Calculates Levenshtein distance for "did you mean" suggestions
 pub(crate) fn levenshtein_distance(a: &str, b: &str) -> usize {
     let len_a = a.chars().count();
     let len_b = b.chars().count();
@@ -43,7 +41,6 @@ pub(crate) fn levenshtein_distance(a: &str, b: &str) -> usize {
     matrix[len_a][len_b]
 }
 
-/// Find the closest match from a list of valid options
 pub(crate) fn suggest_closest_match(input: &str, valid_options: &[&str]) -> Option<String> {
     let mut best_match = None;
     let mut best_distance = usize::MAX;

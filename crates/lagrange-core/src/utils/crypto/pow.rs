@@ -5,14 +5,9 @@ use std::time::Instant;
 
 const MAX_ITERATIONS: u64 = 6_000_000;
 
-/// Proof-of-Work provider
-/// Implements PoW cryptographic operations for TLV547 and TLV548 generation
-pub struct PowProvider;
-
-impl PowProvider {
-    /// Generates TLV547 response from TLV546 input
-    /// Performs SHA256-based proof-of-work calculation
-    pub fn generate_tlv547(tlv546: &[u8]) -> Result<Vec<u8>, String> {
+/// Generates TLV547 response from TLV546 input
+/// Performs SHA256-based proof-of-work calculation
+pub fn generate_tlv547(tlv546: &[u8]) -> Result<Vec<u8>, String> {
         let mut packet = BinaryPacket::from_slice(tlv546);
 
         let version = packet.read::<u16>().map_err(|e| e.to_string())?;
@@ -54,7 +49,7 @@ impl PowProvider {
             let hash = Sha256::digest(&test_data);
 
             // Check if hash matches target
-            if Self::hash_matches_target(&hash, &target) {
+            if hash_matches_target(&hash, &target) {
                 found = true;
                 break;
             }
@@ -87,11 +82,11 @@ impl PowProvider {
         response.write(elapsed_ms).write(iterations);
 
         Ok(response.to_vec())
-    }
+}
 
-    /// Generates TLV548 response
-    /// Creates test data and calls GenerateTlv547
-    pub fn generate_tlv548(uin: u64) -> Result<Vec<u8>, String> {
+/// Generates TLV548 response
+/// Creates test data and calls generate_tlv547
+pub fn generate_tlv548(uin: u64) -> Result<Vec<u8>, String> {
         let mut rng = rand::thread_rng();
 
         // Generate 128 random bytes with first byte set to 21
@@ -118,13 +113,12 @@ impl PowProvider {
         tlv546.write_bytes(&random_bytes);
         tlv546.write(MAX_ITERATIONS);
 
-        Self::generate_tlv547(&tlv546.to_vec())
-    }
+        generate_tlv547(&tlv546.to_vec())
+}
 
-    /// Checks if a hash matches the target
-    /// Compares hash prefix with target
-    fn hash_matches_target(hash: &[u8], target: &[u8]) -> bool {
-        let compare_len = target.len().min(hash.len());
-        hash[..compare_len] == target[..compare_len]
-    }
+/// Checks if a hash matches the target
+/// Compares hash prefix with target
+fn hash_matches_target(hash: &[u8], target: &[u8]) -> bool {
+    let compare_len = target.len().min(hash.len());
+    hash[..compare_len] == target[..compare_len]
 }

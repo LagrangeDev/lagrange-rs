@@ -1,102 +1,151 @@
 use rand::Rng;
 
-const TEA_DELTA: u32 = 0x9E3779B9;
-const TEA_ROUNDS: u32 = 16;
+/// Encrypts data using TEA (Tiny Encryption Algorithm)
+pub fn encrypt(source: &[u8], key: &[u8; 16]) -> Vec<u8> {
+        let k0 = u32::from_be_bytes(key[0..4].try_into().unwrap());
+        let k1 = u32::from_be_bytes(key[4..8].try_into().unwrap());
+        let k2 = u32::from_be_bytes(key[8..12].try_into().unwrap());
+        let k3 = u32::from_be_bytes(key[12..16].try_into().unwrap());
 
-/// TEA (Tiny Encryption Algorithm) provider
-/// Implements TEA cipher with CBC mode and padding
-pub struct TeaProvider;
-
-impl TeaProvider {
-    /// Encrypts data using TEA cipher with the given 16-byte key
-    /// Returns encrypted data with random padding
-    pub fn encrypt(source: &[u8], key: &[u8; 16]) -> Vec<u8> {
-        // Calculate padding length: 10 - ((source.len() + 1) & 7)
-        // Result is in range 3-10
         let fill = 10 - ((source.len() + 1) & 7);
-
-        // Total length: fill + source + 7 (trailing bytes)
         let total_len = fill + source.len() + 7;
 
         let mut buffer = Vec::with_capacity(total_len);
         let mut rng = rand::thread_rng();
 
-        // First byte: encode padding length as (fill - 3) | 0xF8
-        // fill - 3 gives range 0-7, which fits in 3 bits
         buffer.push(((fill - 3) as u8) | 0xF8);
 
-        // Remaining fill-1 random bytes
         for _ in 1..fill {
             buffer.push(rng.gen());
         }
-
-        // Source data
         buffer.extend_from_slice(source);
-
-        // Fill with 7 zero bytes
         buffer.extend_from_slice(&[0u8; 7]);
 
-        // The total should already be a multiple of 8
         debug_assert_eq!(buffer.len() % 8, 0);
 
-        // Encrypt using TEA in CBC mode
-        let mut result = Vec::with_capacity(buffer.len());
-        let mut prev_encrypted = [0u8; 8];
+        let mut plain_xor = 0u64;
+        let mut prev_xor = 0u64;
 
-        for chunk in buffer.chunks(8) {
-            let mut block = [0u8; 8];
-            block.copy_from_slice(chunk);
+        for i in (0..buffer.len()).step_by(8) {
+            let block = u64::from_be_bytes(buffer[i..i + 8].try_into().unwrap());
+            let plain = block ^ plain_xor;
 
-            // XOR with previous encrypted block (CBC mode)
-            for i in 0..8 {
-                block[i] ^= prev_encrypted[i];
-            }
+            let mut x = (plain >> 32) as u32;
+            let mut y = plain as u32;
 
-            // Encrypt block
-            let encrypted = Self::encrypt_block(&block, key);
-            result.extend_from_slice(&encrypted);
-            prev_encrypted = encrypted;
+            x = x.wrapping_add(y.wrapping_add(0x9e3779b9u32) ^ ((y << 4).wrapping_add(k0)) ^ ((y >> 5).wrapping_add(k1)));
+            y = y.wrapping_add(x.wrapping_add(0x9e3779b9u32) ^ ((x << 4).wrapping_add(k2)) ^ ((x >> 5).wrapping_add(k3)));
+            x = x.wrapping_add(y.wrapping_add(0x3c6ef372u32) ^ ((y << 4).wrapping_add(k0)) ^ ((y >> 5).wrapping_add(k1)));
+            y = y.wrapping_add(x.wrapping_add(0x3c6ef372u32) ^ ((x << 4).wrapping_add(k2)) ^ ((x >> 5).wrapping_add(k3)));
+            x = x.wrapping_add(y.wrapping_add(0xdaa66d2bu32) ^ ((y << 4).wrapping_add(k0)) ^ ((y >> 5).wrapping_add(k1)));
+            y = y.wrapping_add(x.wrapping_add(0xdaa66d2bu32) ^ ((x << 4).wrapping_add(k2)) ^ ((x >> 5).wrapping_add(k3)));
+            x = x.wrapping_add(y.wrapping_add(0x78dde6e4u32) ^ ((y << 4).wrapping_add(k0)) ^ ((y >> 5).wrapping_add(k1)));
+            y = y.wrapping_add(x.wrapping_add(0x78dde6e4u32) ^ ((x << 4).wrapping_add(k2)) ^ ((x >> 5).wrapping_add(k3)));
+            x = x.wrapping_add(y.wrapping_add(0x1715609du32) ^ ((y << 4).wrapping_add(k0)) ^ ((y >> 5).wrapping_add(k1)));
+            y = y.wrapping_add(x.wrapping_add(0x1715609du32) ^ ((x << 4).wrapping_add(k2)) ^ ((x >> 5).wrapping_add(k3)));
+            x = x.wrapping_add(y.wrapping_add(0xb54cda56u32) ^ ((y << 4).wrapping_add(k0)) ^ ((y >> 5).wrapping_add(k1)));
+            y = y.wrapping_add(x.wrapping_add(0xb54cda56u32) ^ ((x << 4).wrapping_add(k2)) ^ ((x >> 5).wrapping_add(k3)));
+            x = x.wrapping_add(y.wrapping_add(0x5384540fu32) ^ ((y << 4).wrapping_add(k0)) ^ ((y >> 5).wrapping_add(k1)));
+            y = y.wrapping_add(x.wrapping_add(0x5384540fu32) ^ ((x << 4).wrapping_add(k2)) ^ ((x >> 5).wrapping_add(k3)));
+            x = x.wrapping_add(y.wrapping_add(0xf1bbcdc8u32) ^ ((y << 4).wrapping_add(k0)) ^ ((y >> 5).wrapping_add(k1)));
+            y = y.wrapping_add(x.wrapping_add(0xf1bbcdc8u32) ^ ((x << 4).wrapping_add(k2)) ^ ((x >> 5).wrapping_add(k3)));
+            x = x.wrapping_add(y.wrapping_add(0x8ff34781u32) ^ ((y << 4).wrapping_add(k0)) ^ ((y >> 5).wrapping_add(k1)));
+            y = y.wrapping_add(x.wrapping_add(0x8ff34781u32) ^ ((x << 4).wrapping_add(k2)) ^ ((x >> 5).wrapping_add(k3)));
+            x = x.wrapping_add(y.wrapping_add(0x2e2ac13au32) ^ ((y << 4).wrapping_add(k0)) ^ ((y >> 5).wrapping_add(k1)));
+            y = y.wrapping_add(x.wrapping_add(0x2e2ac13au32) ^ ((x << 4).wrapping_add(k2)) ^ ((x >> 5).wrapping_add(k3)));
+            x = x.wrapping_add(y.wrapping_add(0xcc623af3u32) ^ ((y << 4).wrapping_add(k0)) ^ ((y >> 5).wrapping_add(k1)));
+            y = y.wrapping_add(x.wrapping_add(0xcc623af3u32) ^ ((x << 4).wrapping_add(k2)) ^ ((x >> 5).wrapping_add(k3)));
+            x = x.wrapping_add(y.wrapping_add(0x6a99b4acu32) ^ ((y << 4).wrapping_add(k0)) ^ ((y >> 5).wrapping_add(k1)));
+            y = y.wrapping_add(x.wrapping_add(0x6a99b4acu32) ^ ((x << 4).wrapping_add(k2)) ^ ((x >> 5).wrapping_add(k3)));
+            x = x.wrapping_add(y.wrapping_add(0x08d12e65u32) ^ ((y << 4).wrapping_add(k0)) ^ ((y >> 5).wrapping_add(k1)));
+            y = y.wrapping_add(x.wrapping_add(0x08d12e65u32) ^ ((x << 4).wrapping_add(k2)) ^ ((x >> 5).wrapping_add(k3)));
+            x = x.wrapping_add(y.wrapping_add(0xa708a81eu32) ^ ((y << 4).wrapping_add(k0)) ^ ((y >> 5).wrapping_add(k1)));
+            y = y.wrapping_add(x.wrapping_add(0xa708a81eu32) ^ ((x << 4).wrapping_add(k2)) ^ ((x >> 5).wrapping_add(k3)));
+            x = x.wrapping_add(y.wrapping_add(0x454021d7u32) ^ ((y << 4).wrapping_add(k0)) ^ ((y >> 5).wrapping_add(k1)));
+            y = y.wrapping_add(x.wrapping_add(0x454021d7u32) ^ ((x << 4).wrapping_add(k2)) ^ ((x >> 5).wrapping_add(k3)));
+            x = x.wrapping_add(y.wrapping_add(0xe3779b90u32) ^ ((y << 4).wrapping_add(k0)) ^ ((y >> 5).wrapping_add(k1)));
+            y = y.wrapping_add(x.wrapping_add(0xe3779b90u32) ^ ((x << 4).wrapping_add(k2)) ^ ((x >> 5).wrapping_add(k3)));
+
+            let encrypted = ((x as u64) << 32) | (y as u64);
+            plain_xor = encrypted ^ prev_xor;
+            prev_xor = plain;
+
+            let bytes = plain_xor.to_be_bytes();
+            buffer[i..i + 8].copy_from_slice(&bytes);
         }
 
-        result
-    }
+        buffer
+}
 
-    /// Decrypts data using TEA cipher with the given 16-byte key
-    /// Returns decrypted data with padding removed
-    pub fn decrypt(source: &[u8], key: &[u8; 16]) -> Result<Vec<u8>, &'static str> {
+/// Decrypts data using TEA (Tiny Encryption Algorithm)
+pub fn decrypt(source: &[u8], key: &[u8; 16]) -> Result<Vec<u8>, &'static str> {
         if source.len() < 16 || !source.len().is_multiple_of(8) {
             return Err("Invalid ciphertext length");
         }
 
-        // Decrypt all blocks
-        let mut decrypted = Vec::with_capacity(source.len());
-        let mut prev_encrypted = [0u8; 8];
+        let k0 = u32::from_be_bytes(key[0..4].try_into().unwrap());
+        let k1 = u32::from_be_bytes(key[4..8].try_into().unwrap());
+        let k2 = u32::from_be_bytes(key[8..12].try_into().unwrap());
+        let k3 = u32::from_be_bytes(key[12..16].try_into().unwrap());
 
-        for chunk in source.chunks(8) {
-            let mut block = [0u8; 8];
-            block.copy_from_slice(chunk);
+        let mut decrypted = vec![0u8; source.len()];
+        let mut plain_xor = 0u64;
+        let mut prev_xor = 0u64;
 
-            // Decrypt block
-            let mut decrypted_block = Self::decrypt_block(&block, key);
+        for i in (0..source.len()).step_by(8) {
+            let block = u64::from_be_bytes(source[i..i + 8].try_into().unwrap());
+            plain_xor ^= block;
 
-            // XOR with previous encrypted block (CBC mode)
-            for i in 0..8 {
-                decrypted_block[i] ^= prev_encrypted[i];
-            }
+            let mut x = (plain_xor >> 32) as u32;
+            let mut y = plain_xor as u32;
 
-            decrypted.extend_from_slice(&decrypted_block);
-            prev_encrypted = block;
+            y = y.wrapping_sub(x.wrapping_add(0xe3779b90u32) ^ ((x << 4).wrapping_add(k2)) ^ ((x >> 5).wrapping_add(k3)));
+            x = x.wrapping_sub(y.wrapping_add(0xe3779b90u32) ^ ((y << 4).wrapping_add(k0)) ^ ((y >> 5).wrapping_add(k1)));
+            y = y.wrapping_sub(x.wrapping_add(0x454021d7u32) ^ ((x << 4).wrapping_add(k2)) ^ ((x >> 5).wrapping_add(k3)));
+            x = x.wrapping_sub(y.wrapping_add(0x454021d7u32) ^ ((y << 4).wrapping_add(k0)) ^ ((y >> 5).wrapping_add(k1)));
+            y = y.wrapping_sub(x.wrapping_add(0xa708a81eu32) ^ ((x << 4).wrapping_add(k2)) ^ ((x >> 5).wrapping_add(k3)));
+            x = x.wrapping_sub(y.wrapping_add(0xa708a81eu32) ^ ((y << 4).wrapping_add(k0)) ^ ((y >> 5).wrapping_add(k1)));
+            y = y.wrapping_sub(x.wrapping_add(0x08d12e65u32) ^ ((x << 4).wrapping_add(k2)) ^ ((x >> 5).wrapping_add(k3)));
+            x = x.wrapping_sub(y.wrapping_add(0x08d12e65u32) ^ ((y << 4).wrapping_add(k0)) ^ ((y >> 5).wrapping_add(k1)));
+            y = y.wrapping_sub(x.wrapping_add(0x6a99b4acu32) ^ ((x << 4).wrapping_add(k2)) ^ ((x >> 5).wrapping_add(k3)));
+            x = x.wrapping_sub(y.wrapping_add(0x6a99b4acu32) ^ ((y << 4).wrapping_add(k0)) ^ ((y >> 5).wrapping_add(k1)));
+            y = y.wrapping_sub(x.wrapping_add(0xcc623af3u32) ^ ((x << 4).wrapping_add(k2)) ^ ((x >> 5).wrapping_add(k3)));
+            x = x.wrapping_sub(y.wrapping_add(0xcc623af3u32) ^ ((y << 4).wrapping_add(k0)) ^ ((y >> 5).wrapping_add(k1)));
+            y = y.wrapping_sub(x.wrapping_add(0x2e2ac13au32) ^ ((x << 4).wrapping_add(k2)) ^ ((x >> 5).wrapping_add(k3)));
+            x = x.wrapping_sub(y.wrapping_add(0x2e2ac13au32) ^ ((y << 4).wrapping_add(k0)) ^ ((y >> 5).wrapping_add(k1)));
+            y = y.wrapping_sub(x.wrapping_add(0x8ff34781u32) ^ ((x << 4).wrapping_add(k2)) ^ ((x >> 5).wrapping_add(k3)));
+            x = x.wrapping_sub(y.wrapping_add(0x8ff34781u32) ^ ((y << 4).wrapping_add(k0)) ^ ((y >> 5).wrapping_add(k1)));
+            y = y.wrapping_sub(x.wrapping_add(0xf1bbcdc8u32) ^ ((x << 4).wrapping_add(k2)) ^ ((x >> 5).wrapping_add(k3)));
+            x = x.wrapping_sub(y.wrapping_add(0xf1bbcdc8u32) ^ ((y << 4).wrapping_add(k0)) ^ ((y >> 5).wrapping_add(k1)));
+            y = y.wrapping_sub(x.wrapping_add(0x5384540fu32) ^ ((x << 4).wrapping_add(k2)) ^ ((x >> 5).wrapping_add(k3)));
+            x = x.wrapping_sub(y.wrapping_add(0x5384540fu32) ^ ((y << 4).wrapping_add(k0)) ^ ((y >> 5).wrapping_add(k1)));
+            y = y.wrapping_sub(x.wrapping_add(0xb54cda56u32) ^ ((x << 4).wrapping_add(k2)) ^ ((x >> 5).wrapping_add(k3)));
+            x = x.wrapping_sub(y.wrapping_add(0xb54cda56u32) ^ ((y << 4).wrapping_add(k0)) ^ ((y >> 5).wrapping_add(k1)));
+            y = y.wrapping_sub(x.wrapping_add(0x1715609du32) ^ ((x << 4).wrapping_add(k2)) ^ ((x >> 5).wrapping_add(k3)));
+            x = x.wrapping_sub(y.wrapping_add(0x1715609du32) ^ ((y << 4).wrapping_add(k0)) ^ ((y >> 5).wrapping_add(k1)));
+            y = y.wrapping_sub(x.wrapping_add(0x78dde6e4u32) ^ ((x << 4).wrapping_add(k2)) ^ ((x >> 5).wrapping_add(k3)));
+            x = x.wrapping_sub(y.wrapping_add(0x78dde6e4u32) ^ ((y << 4).wrapping_add(k0)) ^ ((y >> 5).wrapping_add(k1)));
+            y = y.wrapping_sub(x.wrapping_add(0xdaa66d2bu32) ^ ((x << 4).wrapping_add(k2)) ^ ((x >> 5).wrapping_add(k3)));
+            x = x.wrapping_sub(y.wrapping_add(0xdaa66d2bu32) ^ ((y << 4).wrapping_add(k0)) ^ ((y >> 5).wrapping_add(k1)));
+            y = y.wrapping_sub(x.wrapping_add(0x3c6ef372u32) ^ ((x << 4).wrapping_add(k2)) ^ ((x >> 5).wrapping_add(k3)));
+            x = x.wrapping_sub(y.wrapping_add(0x3c6ef372u32) ^ ((y << 4).wrapping_add(k0)) ^ ((y >> 5).wrapping_add(k1)));
+            y = y.wrapping_sub(x.wrapping_add(0x9e3779b9u32) ^ ((x << 4).wrapping_add(k2)) ^ ((x >> 5).wrapping_add(k3)));
+            x = x.wrapping_sub(y.wrapping_add(0x9e3779b9u32) ^ ((y << 4).wrapping_add(k0)) ^ ((y >> 5).wrapping_add(k1)));
+
+            plain_xor = ((x as u64) << 32) | (y as u64);
+            let output = plain_xor ^ prev_xor;
+            prev_xor = block;
+
+            let bytes = output.to_be_bytes();
+            decrypted[i..i + 8].copy_from_slice(&bytes);
         }
 
-        // Extract fill length from first byte: (byte & 7) + 3
         let fill = ((decrypted[0] & 0x07) + 3) as usize;
 
-        // Validate fill length
         if fill + 7 > decrypted.len() {
             return Err("Invalid padding length");
         }
 
-        // Extract plaintext (skip fill bytes, remove last 7 bytes)
         let start = fill;
         let end = decrypted.len() - 7;
 
@@ -105,73 +154,6 @@ impl TeaProvider {
         }
 
         Ok(decrypted[start..end].to_vec())
-    }
-
-    /// Encrypts a single 8-byte block using TEA
-    #[inline]
-    fn encrypt_block(block: &[u8; 8], key: &[u8; 16]) -> [u8; 8] {
-        let mut v0 = u32::from_be_bytes([block[0], block[1], block[2], block[3]]);
-        let mut v1 = u32::from_be_bytes([block[4], block[5], block[6], block[7]]);
-
-        let k0 = u32::from_be_bytes([key[0], key[1], key[2], key[3]]);
-        let k1 = u32::from_be_bytes([key[4], key[5], key[6], key[7]]);
-        let k2 = u32::from_be_bytes([key[8], key[9], key[10], key[11]]);
-        let k3 = u32::from_be_bytes([key[12], key[13], key[14], key[15]]);
-
-        let mut sum = 0u32;
-
-        for _ in 0..TEA_ROUNDS {
-            sum = sum.wrapping_add(TEA_DELTA);
-            v0 = v0.wrapping_add(
-                ((v1 << 4).wrapping_add(k0))
-                    ^ (v1.wrapping_add(sum))
-                    ^ ((v1 >> 5).wrapping_add(k1)),
-            );
-            v1 = v1.wrapping_add(
-                ((v0 << 4).wrapping_add(k2))
-                    ^ (v0.wrapping_add(sum))
-                    ^ ((v0 >> 5).wrapping_add(k3)),
-            );
-        }
-
-        let mut result = [0u8; 8];
-        result[0..4].copy_from_slice(&v0.to_be_bytes());
-        result[4..8].copy_from_slice(&v1.to_be_bytes());
-        result
-    }
-
-    /// Decrypts a single 8-byte block using TEA
-    #[inline]
-    fn decrypt_block(block: &[u8; 8], key: &[u8; 16]) -> [u8; 8] {
-        let mut v0 = u32::from_be_bytes([block[0], block[1], block[2], block[3]]);
-        let mut v1 = u32::from_be_bytes([block[4], block[5], block[6], block[7]]);
-
-        let k0 = u32::from_be_bytes([key[0], key[1], key[2], key[3]]);
-        let k1 = u32::from_be_bytes([key[4], key[5], key[6], key[7]]);
-        let k2 = u32::from_be_bytes([key[8], key[9], key[10], key[11]]);
-        let k3 = u32::from_be_bytes([key[12], key[13], key[14], key[15]]);
-
-        let mut sum = TEA_DELTA.wrapping_mul(TEA_ROUNDS);
-
-        for _ in 0..TEA_ROUNDS {
-            v1 = v1.wrapping_sub(
-                ((v0 << 4).wrapping_add(k2))
-                    ^ (v0.wrapping_add(sum))
-                    ^ ((v0 >> 5).wrapping_add(k3)),
-            );
-            v0 = v0.wrapping_sub(
-                ((v1 << 4).wrapping_add(k0))
-                    ^ (v1.wrapping_add(sum))
-                    ^ ((v1 >> 5).wrapping_add(k1)),
-            );
-            sum = sum.wrapping_sub(TEA_DELTA);
-        }
-
-        let mut result = [0u8; 8];
-        result[0..4].copy_from_slice(&v0.to_be_bytes());
-        result[4..8].copy_from_slice(&v1.to_be_bytes());
-        result
-    }
 }
 
 #[cfg(test)]
@@ -186,8 +168,8 @@ mod tests {
         ];
         let plaintext = b"Hello, World!";
 
-        let encrypted = TeaProvider::encrypt(plaintext, &key);
-        let decrypted = TeaProvider::decrypt(&encrypted, &key).unwrap();
+        let encrypted = encrypt(plaintext, &key);
+        let decrypted = decrypt(&encrypted, &key).unwrap();
 
         assert_eq!(decrypted, plaintext);
     }
@@ -197,8 +179,8 @@ mod tests {
         let key = [0x42; 16];
         let plaintext = b"";
 
-        let encrypted = TeaProvider::encrypt(plaintext, &key);
-        let decrypted = TeaProvider::decrypt(&encrypted, &key).unwrap();
+        let encrypted = encrypt(plaintext, &key);
+        let decrypted = decrypt(&encrypted, &key).unwrap();
 
         assert_eq!(decrypted, plaintext);
     }
@@ -212,31 +194,18 @@ mod tests {
 
         for len in 0..100 {
             let plaintext = vec![0x42u8; len];
-            let encrypted = TeaProvider::encrypt(&plaintext, &key);
-            let decrypted = TeaProvider::decrypt(&encrypted, &key).unwrap();
+            let encrypted = encrypt(&plaintext, &key);
+            let decrypted = decrypt(&encrypted, &key).unwrap();
             assert_eq!(decrypted, plaintext, "Failed at length {}", len);
         }
     }
 
-    #[test]
-    fn test_tea_block_encrypt_decrypt() {
-        let key = [
-            0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E,
-            0x0F, 0x10,
-        ];
-        let block = [0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88];
-
-        let encrypted = TeaProvider::encrypt_block(&block, &key);
-        let decrypted = TeaProvider::decrypt_block(&encrypted, &key);
-
-        assert_eq!(decrypted, block);
-    }
 
     #[test]
     fn test_tea_invalid_length() {
         let key = [0x42; 16];
         let invalid = vec![0u8; 7]; // Not multiple of 8
 
-        assert!(TeaProvider::decrypt(&invalid, &key).is_err());
+        assert!(decrypt(&invalid, &key).is_err());
     }
 }

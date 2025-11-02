@@ -3,7 +3,9 @@ use crate::{
     config::BotConfig,
     error::{Error, Result},
     internal::packets::{
-        ServicePacker, SsoPacker, SsoPacket, SsoSecureInfo,
+        service_build_protocol_12, service_build_protocol_13, service_parse,
+        sso_build_protocol_12, sso_build_protocol_13, sso_parse,
+        SsoPacket, SsoSecureInfo,
     },
     keystore::BotKeystore,
     protocol::{EncryptType, Protocols, RequestType},
@@ -190,11 +192,9 @@ impl PacketContext {
                 });
 
                 let app_info = self.get_app_info();
-                let sso_packer = SsoPacker::new(&keystore, app_info, self.protocol);
-                let service_packer = ServicePacker::new(&keystore);
 
-                let sso_frame = sso_packer.build_protocol_12(packet, sec_info.as_ref());
-                let service_frame = service_packer.build_protocol_12(sso_frame, encrypt_type);
+                let sso_frame = sso_build_protocol_12(&keystore, app_info, self.protocol, packet, sec_info.as_ref());
+                let service_frame = service_build_protocol_12(&keystore, sso_frame, encrypt_type);
 
                 Ok(Bytes::from(service_frame))
             }
@@ -208,13 +208,10 @@ impl PacketContext {
                     }
                 });
 
-                let app_info = self.get_app_info();
-                let sso_packer = SsoPacker::new(&keystore, app_info, self.protocol);
-                let service_packer = ServicePacker::new(&keystore);
+                let sso_frame = sso_build_protocol_13(&keystore, self.protocol, packet);
 
-                let sso_frame = sso_packer.build_protocol_13(packet);
-
-                let service_frame = service_packer.build_protocol_13(
+                let service_frame = service_build_protocol_13(
+                    &keystore,
                     packet.sequence,
                     sso_frame.as_slice(),
                     encrypt_type,
@@ -241,15 +238,9 @@ impl PacketContext {
     pub fn decode_packet(&self, data: Bytes) -> Result<SsoPacket> {
         let keystore = self.keystore.read().expect("RwLock poisoned");
 
-        let app_info = self.get_app_info();
-        let service_packer = ServicePacker::new(&keystore);
-        let sso_packer = SsoPacker::new(&keystore, app_info, self.protocol);
-
-        let sso_data = service_packer
-            .parse(&data)
+        let sso_data = service_parse(&keystore, &data)
             .map_err(|e| Error::ParseError(format!("Service parse failed: {}", e)))?;
-        let packet = sso_packer
-            .parse(&sso_data)
+        let packet = sso_parse(&sso_data)
             .map_err(|e| Error::ParseError(format!("SSO parse failed: {}", e)))?;
 
         Ok(packet)

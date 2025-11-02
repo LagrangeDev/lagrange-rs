@@ -7,7 +7,6 @@ use syn::{
 
 use crate::utils::validate_path_structure;
 
-/// Attribute arguments for the #[service] macro
 struct ServiceArgs {
     command: String,
     request_type: Option<Path>,
@@ -22,7 +21,6 @@ impl Parse for ServiceArgs {
         let mut encrypt_type = None;
         let mut disable_log = false;
 
-        // Parse comma-separated key-value pairs
         while !input.is_empty() {
             let key: Ident = input.parse()?;
             input.parse::<Token![=]>()?;
@@ -31,12 +29,10 @@ impl Parse for ServiceArgs {
                 let value: LitStr = input.parse()?;
                 command = Some(value.value());
             } else if key == "request_type" {
-                // Parse as path (e.g., RequestType::D2Auth)
                 let path: Path = input.parse()?;
                 validate_path_structure(&path, "request_type")?;
                 request_type = Some(path);
             } else if key == "encrypt_type" {
-                // Parse as path (e.g., EncryptType::EncryptEmpty)
                 let path: Path = input.parse()?;
                 validate_path_structure(&path, "encrypt_type")?;
                 encrypt_type = Some(path);
@@ -53,7 +49,6 @@ impl Parse for ServiceArgs {
                 ));
             }
 
-            // Parse optional comma
             if input.peek(Token![,]) {
                 input.parse::<Token![,]>()?;
             }
@@ -80,7 +75,6 @@ pub(crate) fn service_impl(attr: TokenStream, item: TokenStream) -> TokenStream 
     let generics = &input.generics;
     let command = &args.command;
 
-    // Add metadata field to the struct
     if let syn::Fields::Named(ref mut fields) = input.fields {
         let metadata_field: syn::Field = syn::parse_quote! {
             metadata: crate::protocol::ServiceMetadata
@@ -95,26 +89,22 @@ pub(crate) fn service_impl(attr: TokenStream, item: TokenStream) -> TokenStream 
         .into();
     }
 
-    // Generate metadata initialization with method chaining
     let mut metadata_init = quote! {
         crate::protocol::ServiceMetadata::new(#command)
     };
 
-    // Add request_type if specified
     if let Some(ref rt_path) = args.request_type {
         metadata_init = quote! {
             #metadata_init.with_request_type(#rt_path)
         };
     }
 
-    // Add encrypt_type if specified
     if let Some(ref et_path) = args.encrypt_type {
         metadata_init = quote! {
             #metadata_init.with_encrypt_type(#et_path)
         };
     }
 
-    // Add disable_log if true
     if args.disable_log {
         metadata_init = quote! {
             #metadata_init.with_disable_log(true)

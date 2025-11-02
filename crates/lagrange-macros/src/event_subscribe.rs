@@ -7,7 +7,6 @@ use syn::{
 
 use crate::utils::validate_path_structure;
 
-/// Attribute arguments for the #[event_subscribe] macro
 struct EventSubscribeArgs {
     event_type: syn::Path,
     protocol: Option<syn::Path>,
@@ -15,11 +14,9 @@ struct EventSubscribeArgs {
 
 impl Parse for EventSubscribeArgs {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        // First argument is the event type (required)
         let event_type: syn::Path = input.parse()?;
         let mut protocol = None;
 
-        // Parse optional protocol filter
         if input.peek(Token![,]) {
             input.parse::<Token![,]>()?;
 
@@ -48,9 +45,7 @@ pub(crate) fn event_subscribe_impl(attr: TokenStream, item: TokenStream) -> Toke
     let name = &input.ident;
     let event_type = &args.event_type;
 
-    // Generate protocol mask from the provided path or default to ALL
     let protocol_mask = if let Some(ref protocol_path) = args.protocol {
-        // Always cast to u8 - safe for both enum variants and u8 constants
         quote! { (#protocol_path) as u8 }
     } else {
         quote! { crate::protocol::Protocols::ALL }

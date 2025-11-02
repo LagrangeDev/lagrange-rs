@@ -9,7 +9,6 @@ use crate::protocol::{EncryptType, EventMessage, Protocols, RequestType};
 use crate::utils::binary::{BinaryPacket, Prefix};
 use crate::utils::tlv_unpack;
 
-// Trans Emp service - handles both command 0x31 and 0x12
 define_service! {
     TransEmpService {
         command: "wtlogin.trans_emp",
@@ -52,19 +51,12 @@ define_service! {
                 .parse_code_2d_packet(input.as_ref())
                 .map_err(|e| crate::error::Error::ParseError(e.to_string()))?;
 
-            // Dispatch based on command code
             match command {
                 0x31 => {
-                    // TransEmp31 response
                     let mut reader = BinaryPacket::from_slice(&payload);
-
-                    // Read QR URL
                     let qr_url = reader.read_string(Prefix::INT16)?;
-
-                    // Read TLV data
                     let tlvs = tlv_unpack(&mut reader)?;
 
-                    // Try to read signature if available
                     let sig = if reader.remaining() >= 2 {
                         match reader.read_bytes_with_prefix(Prefix::INT16) {
                             Ok(sig_data) => Some(sig_data.to_vec()),
@@ -88,16 +80,12 @@ define_service! {
                     }))
                 }
                 0x12 => {
-                    // TransEmp12 response
                     let mut reader = BinaryPacket::from_slice(&payload);
                     let ret_code = reader.read::<u8>()?;
 
                     let (uin, retry, tlv_1e, tlv_19, tlv_18) = if ret_code == 0 {
-                        // Success - extract UIN, retry count, and specific TLVs
                         let uin = reader.read::<u64>()?;
                         let retry = reader.read::<u8>()?;
-
-                        // Parse TLV collection
                         let tlvs = tlv_unpack(&mut reader)?;
 
                         tracing::debug!(
@@ -143,7 +131,6 @@ define_service! {
             let packet = WtLogin::new(&keystore, app_info)
                 .map_err(|e| crate::error::Error::BuildError(e.to_string()))?;
 
-            // Dispatch based on event type
             if let Some(input) = event.downcast_ref::<TransEmp31EventReq>() {
                 let data = packet.build_trans_emp_31(input.unusual_sig.as_deref());
                 Ok(Bytes::from(data))
@@ -159,16 +146,13 @@ define_service! {
     }
 }
 
-// Helper methods for response types
 impl TransEmp31EventResp {
-    /// Get a specific TLV value by tag
     pub fn get_tlv(&self, tag: u16) -> Option<&Vec<u8>> {
         self.tlvs.get(&tag)
     }
 }
 
 impl TransEmp12EventResp {
-    /// Check if the response was successful
     pub fn is_success(&self) -> bool {
         self.ret_code == 0
     }

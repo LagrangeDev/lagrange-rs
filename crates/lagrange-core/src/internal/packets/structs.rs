@@ -6,9 +6,9 @@ pub mod sso_secure_info;
 
 // Re-exports are kept for future use when implementing protocol handlers
 #[allow(unused_imports)]
-pub use service_packer::ServicePacker;
+pub use service_packer::{service_build_protocol_12, service_build_protocol_13, service_parse};
 #[allow(unused_imports)]
-pub use sso_packer::SsoPacker;
+pub use sso_packer::{sso_build_protocol_12, sso_build_protocol_13, sso_parse};
 #[allow(unused_imports)]
 pub use sso_packet::SsoPacket;
 #[allow(unused_imports)]

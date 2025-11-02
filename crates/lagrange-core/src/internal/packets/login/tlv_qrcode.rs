@@ -1,3 +1,4 @@
+use super::tlv_writer::TlvWritable;
 use crate::{
     common::AppInfo,
     keystore::BotKeystore,
@@ -12,6 +13,16 @@ pub struct TlvQrCode<'a> {
     app_info: &'a AppInfo,
 }
 
+impl<'a> TlvWritable for TlvQrCode<'a> {
+    fn writer_mut(&mut self) -> &mut BinaryPacket {
+        &mut self.writer
+    }
+
+    fn increment_count(&mut self) {
+        self.count += 1;
+    }
+}
+
 impl<'a> TlvQrCode<'a> {
     pub fn new(keystore: &'a BotKeystore, app_info: &'a AppInfo) -> Self {
         let mut writer = BinaryPacket::with_capacity(300);
@@ -23,31 +34,6 @@ impl<'a> TlvQrCode<'a> {
             keystore,
             app_info,
         }
-    }
-
-    /// Writes a TLV entry using a closure-based approach.
-    ///
-    /// This method provides a functional way to write TLV (Tag-Length-Value) entries.
-    /// It automatically writes the tag, reserves space for the length, executes the closure
-    /// to write the value, calculates the length, and writes it back.
-    ///
-    /// # Parameters
-    ///
-    /// * `tag` - The TLV tag identifier
-    /// * `f` - Closure that receives `&mut Self` to write the TLV value
-    fn write_tlv<F>(&mut self, tag: u16, f: F)
-    where
-        F: FnOnce(&mut Self),
-    {
-        self.writer.write(tag);
-        let length_pos = self.writer.offset();
-        self.writer.skip(2); // Reserve space for u16 length
-
-        f(self);
-
-        let length = (self.writer.offset() - length_pos - 2) as u16;
-        self.writer.write_at(length_pos, length).unwrap();
-        self.count += 1;
     }
 
     pub fn tlv_02(&mut self) {

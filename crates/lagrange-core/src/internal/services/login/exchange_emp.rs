@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use crate::protocol::{EncryptType, EventMessage, Protocols, RequestType};
 use crate::utils::binary::BinaryPacket;
-use crate::utils::crypto::TeaProvider;
+use crate::utils::crypto::tea;
 use crate::utils::tlv_unpack;
 
 /// Exchange emp command type
@@ -88,7 +88,7 @@ define_service! {
                     .try_into()
                     .map_err(|_| crate::error::Error::ParseError("Invalid key length".into()))?;
 
-                let decrypted = TeaProvider::decrypt(&tgtgt_data, &key_array).map_err(|e| {
+                let decrypted = tea::decrypt(&tgtgt_data, &key_array).map_err(|e| {
                     crate::error::Error::ParseError(format!("Failed to decrypt TLV 0x119: {}", e))
                 })?;
 

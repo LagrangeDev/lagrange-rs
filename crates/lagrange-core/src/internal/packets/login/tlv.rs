@@ -1,9 +1,10 @@
+use super::tlv_writer::TlvWritable;
 use crate::{
     common::AppInfo,
     keystore::BotKeystore,
     utils::{
         binary::{BinaryPacket, Prefix},
-        crypto::TeaProvider,
+        crypto::tea,
     },
 };
 use rand::Rng;
@@ -16,6 +17,16 @@ pub struct Tlv<'a> {
     prefixed: bool,
     keystore: &'a BotKeystore,
     app_info: &'a AppInfo,
+}
+
+impl<'a> TlvWritable for Tlv<'a> {
+    fn writer_mut(&mut self) -> &mut BinaryPacket {
+        &mut self.writer
+    }
+
+    fn increment_count(&mut self) {
+        self.count += 1;
+    }
 }
 
 impl<'a> Tlv<'a> {
@@ -36,31 +47,6 @@ impl<'a> Tlv<'a> {
             keystore,
             app_info,
         }
-    }
-
-    /// Writes a TLV entry using a closure-based approach.
-    ///
-    /// This method provides a functional way to write TLV (Tag-Length-Value) entries.
-    /// It automatically writes the tag, reserves space for the length, executes the closure
-    /// to write the value, calculates the length, and writes it back.
-    ///
-    /// # Parameters
-    ///
-    /// * `tag` - The TLV tag identifier
-    /// * `f` - Closure that receives `&mut Self` to write the TLV value
-    fn write_tlv<F>(&mut self, tag: u16, f: F)
-    where
-        F: FnOnce(&mut Self),
-    {
-        self.writer.write(tag);
-        let length_pos = self.writer.offset();
-        self.writer.skip(2); // Reserve space for u16 length
-
-        f(self);
-
-        let length = (self.writer.offset() - length_pos - 2) as u16;
-        self.writer.write_at(length_pos, length).unwrap();
-        self.count += 1;
     }
 
     pub fn tlv_001(&mut self) {
@@ -164,7 +150,7 @@ impl<'a> Tlv<'a> {
             plain_writer.write(1u32); // flag
             plain_writer.write_str(&this.keystore.uin.unwrap_or(0).to_string(), Prefix::INT16);
             plain_writer.write(0i16);
-            let encrypted = TeaProvider::encrypt(plain_writer.as_slice(), &key_array);
+            let encrypted = tea::encrypt(plain_writer.as_slice(), &key_array);
             this.writer.write_bytes(&encrypted);
         });
     }
@@ -286,7 +272,7 @@ impl<'a> Tlv<'a> {
 
         let span = tlv.create_bytes();
         let tgtgt_key: [u8; 16] = self.keystore.sigs.tgtgt_key[..16].try_into().unwrap();
-        let encrypted = TeaProvider::encrypt(&span, &tgtgt_key);
+        let encrypted = tea::encrypt(&span, &tgtgt_key);
 
         self.write_tlv(0x144, |this| {
             this.writer.write_bytes(&encrypted);
@@ -309,7 +295,7 @@ impl<'a> Tlv<'a> {
             &self.keystore.sigs.tgtgt_key
         };
         let key_array: [u8; 16] = key[..16].try_into().unwrap();
-        let encrypted = TeaProvider::encrypt(&span, &key_array);
+        let encrypted = tea::encrypt(&span, &key_array);
 
         self.write_tlv(0x144, |this| {
             this.writer.write_bytes(&encrypted);
@@ -446,7 +432,7 @@ impl<'a> Tlv<'a> {
             inner_writer.write_bytes(&rand_seed);
 
             let guid_key: [u8; 16] = this.keystore.guid[..16].try_into().unwrap();
-            let encrypted = TeaProvider::encrypt(inner_writer.as_slice(), &guid_key);
+            let encrypted = tea::encrypt(inner_writer.as_slice(), &guid_key);
 
             this.writer.write_bytes(&encrypted);
         });

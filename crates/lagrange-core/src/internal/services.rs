@@ -115,22 +115,14 @@ fn __register_all_services(registry: &mut ServiceRegistry) {
     }
 }
 
-// Re-export SsoPacket from packets module for convenience
 pub use crate::internal::packets::SsoPacket;
 
-// Service modules
-pub mod login;
-pub mod system;
+use lagrange_macros::auto_reexport;
 
-// Re-export login-related services
-pub use login::{
-    CloseCodeEventReq, CloseCodeEventResp, ExchangeEmpCommand, ExchangeEmpEventReq,
-    ExchangeEmpEventResp, ExchangeEmpService, LoginCommand, LoginEventReq, LoginEventReqAndroid,
-    LoginEventResp, LoginEventRespAndroid, LoginService, LoginStates, QrLoginService,
-    TransEmp12EventReq, TransEmp12EventResp, TransEmp31EventReq, TransEmp31EventResp,
-    TransEmpService, UinResolveEventReq, UinResolveEventResp, UinResolveService,
-    VerifyCodeEventReq, VerifyCodeEventResp,
-};
+auto_reexport! {
+    pub mod login;
+    pub mod system;
+}
 
-// Re-export system-related services
-pub use system::{AliveEventReq, AliveEventResp};
+// Re-export renamed types for backward compatibility
+pub use login::{LoginCommand, LoginStates};

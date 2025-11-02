@@ -4,7 +4,7 @@ use crate::{
     keystore::BotKeystore,
     utils::{
         binary::{BinaryPacket, Prefix},
-        crypto::{EcdhProvider, EllipticCurveType, TeaProvider},
+        crypto::{tea, EcdhProvider, EllipticCurveType},
     },
 };
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -35,14 +35,7 @@ impl<'a> WtLogin<'a> {
     pub fn new(keystore: &'a BotKeystore, app_info: &'a AppInfo) -> Result<Self, &'static str> {
         let ecdh_provider = EcdhProvider::new(EllipticCurveType::Secp192K1);
 
-        // Get the secret key from keystore state
-        // For now, we'll generate a new one if not available
-        let secret = if let Some(ref exchange_key) = keystore.state.exchange_key {
-            exchange_key.clone()
-        } else {
-            ecdh_provider.generate_secret()
-        };
-
+        let secret = ecdh_provider.generate_secret();
         let share_key = ecdh_provider.key_exchange(&secret, &SERVER_PUBLIC_KEY, true)?;
 
         Ok(Self {
@@ -362,7 +355,7 @@ impl<'a> WtLogin<'a> {
         };
 
         let key_array: [u8; 16] = key[..16].try_into().unwrap();
-        let encrypted = TeaProvider::encrypt(payload, &key_array);
+        let encrypted = tea::encrypt(payload, &key_array);
 
         let mut writer = BinaryPacket::with_capacity(encrypted.len() + 80);
 
@@ -423,7 +416,7 @@ impl<'a> WtLogin<'a> {
                 .as_ref()
                 .unwrap_or(&self.keystore.sigs.random_key);
             let key_array: [u8; 16] = st_key[..16].try_into().unwrap();
-            TeaProvider::encrypt(req_body.as_slice(), &key_array)
+            tea::encrypt(req_body.as_slice(), &key_array)
         } else {
             req_body.as_slice().to_vec()
         };
@@ -519,7 +512,7 @@ impl<'a> WtLogin<'a> {
 
         let key_array: [u8; 16] = key[..16].try_into().map_err(|_| "Invalid key length")?;
         let decrypted =
-            TeaProvider::decrypt(encrypted, &key_array).map_err(|_| "Failed to decrypt")?;
+            tea::decrypt(encrypted, &key_array).map_err(|_| "Failed to decrypt")?;
 
         Ok((command, decrypted))
     }
@@ -542,7 +535,7 @@ impl<'a> WtLogin<'a> {
                 .as_ref()
                 .unwrap_or(&self.keystore.sigs.random_key);
             let key_array: [u8; 16] = st_key[..16].try_into().unwrap();
-            &TeaProvider::decrypt(&input[5..5 + layer as usize], &key_array)
+            &tea::decrypt(&input[5..5 + layer as usize], &key_array)
                 .map_err(|_| "Failed to decrypt code2d packet")?
         };
 

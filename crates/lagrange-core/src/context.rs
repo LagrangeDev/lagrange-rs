@@ -60,6 +60,9 @@ impl BotContext {
     ///
     /// # Example
     /// ```no_run
+    /// # use lagrange_core::context::BotContext;
+    /// # use std::sync::Arc;
+    /// # let context: Arc<BotContext> = todo!();
     /// let _span = context.span().entered();
     /// tracing::info!("Processing message"); // Will include bot context
     /// ```

@@ -9,16 +9,11 @@ use syn::{
     Block, Expr, Ident, LitBool, LitStr, Path, ReturnType, Signature, Token, Type,
 };
 
-/// Validate that a protocol expression is valid and extract the constant name
-/// Expects expressions like `Protocols::PC`, `Protocols::ANDROID`, etc.
-/// Returns the constant name (e.g., "PC", "ANDROID")
 fn validate_and_extract_protocol(expr: &Expr) -> syn::Result<String> {
     const VALID_PROTOCOLS: &[&str] = &[
-        // Bit mask constants
         "PC",
         "ANDROID",
         "ALL",
-        // Individual variants
         "Windows",
         "MacOs",
         "Linux",
@@ -27,11 +22,9 @@ fn validate_and_extract_protocol(expr: &Expr) -> syn::Result<String> {
         "AndroidWatch",
     ];
 
-    // Expression should be a path like Protocols::PC
     if let Expr::Path(expr_path) = expr {
         let path = &expr_path.path;
 
-        // Validate it's of the form Protocols::X
         if path.segments.len() == 2 {
             let first_segment = &path.segments[0];
             let second_segment = &path.segments[1];
@@ -63,7 +56,6 @@ fn validate_and_extract_protocol(expr: &Expr) -> syn::Result<String> {
     ))
 }
 
-/// Struct field definition for services! macro
 struct ServiceField {
     name: Ident,
     ty: Type,
@@ -75,14 +67,12 @@ impl Parse for ServiceField {
         input.parse::<Token![:]>()?;
         let ty: Type = input.parse()?;
 
-        // Optional trailing comma
         let _ = input.parse::<Token![,]>();
 
         Ok(ServiceField { name, ty })
     }
 }
 
-/// Function definition with full signature
 struct ServiceFunction {
     signature: Signature,
     body: Block,
@@ -90,7 +80,6 @@ struct ServiceFunction {
 
 impl ServiceFunction {
     fn parse_with_name(input: ParseStream, expected_name: &str) -> syn::Result<Self> {
-        // Parse: async fn name(params) -> ReturnType { body }
         input.parse::<Token![async]>()?;
         input.parse::<Token![fn]>()?;
 
@@ -105,7 +94,6 @@ impl ServiceFunction {
             ));
         }
 
-        // Parse full signature (parameters and return type)
         let content;
         syn::parenthesized!(content in input);
 
@@ -141,7 +129,6 @@ impl ServiceFunction {
     }
 }
 
-/// Event definition within a service
 struct EventDefinition {
     #[allow(dead_code)]
     name: Ident,
@@ -156,10 +143,8 @@ struct EventDefinition {
 
 impl Parse for EventDefinition {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        // Parse: EventName(protocol = Protocols::ANDROID) { ... }
         let name: Ident = input.parse()?;
 
-        // Parse protocol parameter
         let protocol_content;
         syn::parenthesized!(protocol_content in input);
 
@@ -175,7 +160,6 @@ impl Parse for EventDefinition {
         let protocol_expr: Expr = protocol_content.parse()?;
         let protocol_name = validate_and_extract_protocol(&protocol_expr)?;
 
-        // Parse event body { request { ... } response { ... } }
         let event_content;
         braced!(event_content in input);
 
@@ -238,7 +222,6 @@ impl Parse for EventDefinition {
     }
 }
 
-/// Arguments for the new unified services! macro
 struct UnifiedServiceArgs {
     service_name: Ident,
     command: String,
@@ -252,13 +235,11 @@ struct UnifiedServiceArgs {
 
 impl Parse for UnifiedServiceArgs {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        // Parse: ServiceName { ... }
         let service_name: Ident = input.parse()?;
 
         let content;
         braced!(content in input);
 
-        // Parse service metadata
         let mut command = None;
         let mut request_type = None;
         let mut encrypt_type = None;
@@ -296,7 +277,6 @@ impl Parse for UnifiedServiceArgs {
                     disable_log = value.value;
                     let _ = content.parse::<Token![,]>();
                 } else if key == "events" {
-                    // Parse events block
                     let events_content;
                     braced!(events_content in content);
 
@@ -310,7 +290,6 @@ impl Parse for UnifiedServiceArgs {
                     ));
                 }
             } else if lookahead.peek(Token![async]) {
-                // Parse async function
                 let fork = content.fork();
                 fork.parse::<Token![async]>()?;
                 fork.parse::<Token![fn]>()?;
@@ -364,46 +343,12 @@ impl Parse for UnifiedServiceArgs {
     }
 }
 
-/// Defines a service with request/response types and protocol handling.
-///
-/// New syntax supporting multiple events per service:
-///
-/// ```ignore
-/// define_service! {
-///     QrLoginService {
-///         command: "wtlogin.qrlogin",
-///         request_type: RequestType::D2Auth,
-///         encrypt_type: EncryptType::EncryptEmpty,
-///
-///         events {
-///             VerifyCodeEvent(protocol = Protocols::ANDROID) {
-///                 request VerifyCodeEventReq {
-///                     key: Vec<u8>,
-///                 }
-///                 response VerifyCodeEventResp {
-///                     state: u8,
-///                     message: String,
-///                 }
-///             }
-///         }
-///
-///         async fn parse(input: Bytes, context: Arc<BotContext>) -> Result<EventMessage> {
-///             // Your parse logic
-///         }
-///
-///         async fn build(event: EventMessage, context: Arc<BotContext>) -> Result<Bytes> {
-///             // Your build logic
-///         }
-///     }
-/// }
-/// ```
 pub(crate) fn define_service_impl(input: TokenStream) -> TokenStream {
     let args = parse_macro_input!(input as UnifiedServiceArgs);
 
     let service_name = &args.service_name;
     let command = &args.command;
 
-    // Generate metadata initialization
     let mut metadata_init = quote! {
         crate::protocol::ServiceMetadata::new(#command)
     };
@@ -426,7 +371,6 @@ pub(crate) fn define_service_impl(input: TokenStream) -> TokenStream {
         };
     }
 
-    // Generate event structs (request/response pairs with builders)
     let event_structs = args.events.iter().map(|event| {
         let request_name = &event.request_name;
         let response_name = &event.response_name;
@@ -435,7 +379,6 @@ pub(crate) fn define_service_impl(input: TokenStream) -> TokenStream {
         let response_builder_name =
             Ident::new(&format!("{}Builder", response_name), response_name.span());
 
-        // Generate request fields
         let request_fields = event.request_fields.iter().map(|f| {
             let name = &f.name;
             let ty = &f.ty;
@@ -493,7 +436,6 @@ pub(crate) fn define_service_impl(input: TokenStream) -> TokenStream {
 
         let request_builder_field_names = event.request_fields.iter().map(|f| &f.name);
 
-        // Generate response fields
         let response_fields = event.response_fields.iter().map(|f| {
             let name = &f.name;
             let ty = &f.ty;
@@ -552,7 +494,6 @@ pub(crate) fn define_service_impl(input: TokenStream) -> TokenStream {
         let response_builder_field_names = event.response_fields.iter().map(|f| &f.name);
 
         quote! {
-            // Request struct
             #[derive(Debug, Clone, PartialEq)]
             pub struct #request_name {
                 #(#request_fields),*
@@ -576,7 +517,6 @@ pub(crate) fn define_service_impl(input: TokenStream) -> TokenStream {
 
             impl crate::protocol::ProtocolEvent for #request_name {}
 
-            // Request builder
             #[derive(Debug, Default, Clone)]
             pub struct #request_builder_name {
                 #(#request_builder_fields),*
@@ -594,7 +534,6 @@ pub(crate) fn define_service_impl(input: TokenStream) -> TokenStream {
                 }
             }
 
-            // Response struct
             #[derive(Debug, Clone, PartialEq)]
             pub struct #response_name {
                 #(#response_fields),*
@@ -618,7 +557,6 @@ pub(crate) fn define_service_impl(input: TokenStream) -> TokenStream {
 
             impl crate::protocol::ProtocolEvent for #response_name {}
 
-            // Response builder
             #[derive(Debug, Default, Clone)]
             pub struct #response_builder_name {
                 #(#response_builder_fields),*
@@ -638,13 +576,11 @@ pub(crate) fn define_service_impl(input: TokenStream) -> TokenStream {
         }
     });
 
-    // Generate service struct
     let parse_params = &args.parse_fn.signature.inputs;
     let parse_body = &args.parse_fn.body;
     let build_params = &args.build_fn.signature.inputs;
     let build_body = &args.build_fn.body;
 
-    // Generate event registrations
     let event_registrations = args.events.iter().map(|event| {
         let request_name = &event.request_name;
         let protocol_expr = &event.protocol_expr;
@@ -663,10 +599,8 @@ pub(crate) fn define_service_impl(input: TokenStream) -> TokenStream {
     );
 
     let expanded = quote! {
-        // Generate all event structs
         #(#event_structs)*
 
-        // Service struct
         #[derive(Debug)]
         pub struct #service_name {
             metadata: crate::protocol::ServiceMetadata,
@@ -693,7 +627,6 @@ pub(crate) fn define_service_impl(input: TokenStream) -> TokenStream {
             }
         }
 
-        // Service implementation
         #[async_trait::async_trait]
         impl crate::internal::services::Service for #service_name {
             #[inline]
@@ -708,18 +641,15 @@ pub(crate) fn define_service_impl(input: TokenStream) -> TokenStream {
             }
         }
 
-        // Registration function
         #[linkme::distributed_slice(crate::internal::services::SERVICE_INITIALIZERS)]
         fn #registration_fn_name(registry: &mut crate::internal::services::ServiceRegistry) {
             let service = std::sync::Arc::new(#service_name::default());
 
-            // Register service by command
             registry.register_service(
                 #command.to_string(),
                 service.clone(),
             );
 
-            // Register event subscriptions
             #(#event_registrations)*
         }
     };

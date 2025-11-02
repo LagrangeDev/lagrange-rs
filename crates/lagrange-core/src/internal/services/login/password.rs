@@ -7,7 +7,7 @@ use std::sync::Arc;
 
 use crate::protocol::{EncryptType, EventMessage, Protocols, RequestType};
 use crate::utils::binary::{BinaryPacket, Prefix};
-use crate::utils::crypto::TeaProvider;
+use crate::utils::crypto::tea;
 use crate::utils::tlv_unpack;
 
 /// Command type for login operations
@@ -126,7 +126,7 @@ fn parse_login_response(
             .try_into()
             .map_err(|_| crate::error::Error::ParseError("Invalid tgtgt_key length".into()))?;
 
-        let decrypted = TeaProvider::decrypt(&tgtgt_data, &tgtgt_key)
+        let decrypted = tea::decrypt(&tgtgt_data, &tgtgt_key)
             .map_err(|e| crate::error::Error::ParseError(format!("Failed to decrypt: {}", e)))?;
 
         let mut tlv119_reader = BinaryPacket::from_slice(&decrypted);
