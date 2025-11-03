@@ -128,9 +128,9 @@ impl BotContextBuilder {
 
         let service = ServiceContext::new(&config);
 
-        // EventContext needs service, packet, socket, and config
+        // EventContext needs packet, socket, and config
         let config_arc = Arc::new(config.clone());
-        let event = EventContext::new(service.clone(), packet.clone(), socket.clone(), config_arc);
+        let event = EventContext::new(packet.clone(), socket.clone(), config_arc);
 
         Arc::new(BotContext {
             config,

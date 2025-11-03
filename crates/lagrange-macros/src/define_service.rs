@@ -576,27 +576,193 @@ pub(crate) fn define_service_impl(input: TokenStream) -> TokenStream {
         }
     });
 
+    // Extract parse and build function bodies
     let parse_params = &args.parse_fn.signature.inputs;
     let parse_body = &args.parse_fn.body;
     let build_params = &args.build_fn.signature.inputs;
     let build_body = &args.build_fn.body;
 
-    let event_registrations = args.events.iter().map(|event| {
-        let request_name = &event.request_name;
-        let protocol_expr = &event.protocol_expr;
-        quote! {
-            registry.register_event(
-                std::any::TypeId::of::<#request_name>(),
-                service.clone(),
-                #protocol_expr,
-            );
-        }
-    });
-
     let registration_fn_name = Ident::new(
         &format!("__register_{}", service_name.to_string().to_lowercase()),
         service_name.span(),
     );
+
+    // Generate TypedService implementation
+    // For single-event services, use the request/response types directly
+    // For multi-event services, generate enum wrappers
+    let (typed_service_code, typed_service_registration) = if args.events.len() == 1 {
+        // Single event - use types directly
+        let event = &args.events[0];
+        let request_type = &event.request_name;
+        let response_type = &event.response_name;
+        let protocol_expr = &event.protocol_expr;
+
+        let typed_impl = quote! {
+            #[async_trait::async_trait]
+            impl crate::protocol::TypedService for #service_name {
+                type Request = #request_type;
+                type Response = #response_type;
+
+                #[inline]
+                fn metadata(&self) -> &crate::protocol::ServiceMetadata {
+                    &self.metadata
+                }
+
+                #[inline]
+                async fn build(
+                    &self,
+                    request: &Self::Request,
+                    context: std::sync::Arc<crate::context::BotContext>,
+                ) -> crate::Result<bytes::Bytes> {
+                    // Call helper build method with EventMessage
+                    let event = crate::protocol::EventMessage::new(request.clone());
+                    self.__internal_build(event, context).await
+                }
+
+                #[inline]
+                async fn parse(
+                    &self,
+                    bytes: bytes::Bytes,
+                    context: std::sync::Arc<crate::context::BotContext>,
+                ) -> crate::Result<Self::Response> {
+                    // Call helper parse method
+                    let event_msg = self.__internal_parse(bytes, context).await?;
+
+                    // Downcast to the concrete response type
+                    event_msg
+                        .downcast::<Self::Response>()
+                        .map(|arc| {
+                            std::sync::Arc::try_unwrap(arc).unwrap_or_else(|arc| (*arc).clone())
+                        })
+                        .ok_or_else(|| {
+                            crate::error::Error::ParseError(
+                                "Failed to downcast response to expected type".to_string()
+                            )
+                        })
+                }
+            }
+        };
+
+        let typed_reg = quote! {
+            registry.register_typed_service(
+                #service_name::default(),
+                #protocol_expr,
+            );
+        };
+
+        (quote! { #typed_impl }, typed_reg)
+    } else {
+        // Multi-event service - generate enum wrappers
+        let request_enum_name = Ident::new(&format!("{}Request", service_name), service_name.span());
+        let response_enum_name = Ident::new(&format!("{}Response", service_name), service_name.span());
+
+        let request_variants = args.events.iter().map(|event| {
+            let variant_name = &event.name;
+            let request_type = &event.request_name;
+            quote! { #variant_name(#request_type) }
+        });
+
+        let response_variants = args.events.iter().map(|event| {
+            let variant_name = &event.name;
+            let response_type = &event.response_name;
+            quote! { #variant_name(#response_type) }
+        });
+
+        let build_match_arms = args.events.iter().map(|event| {
+            let variant_name = &event.name;
+            quote! {
+                #request_enum_name::#variant_name(req) => {
+                    let event = crate::protocol::EventMessage::new(req.clone());
+                    self.__internal_build(event, context).await
+                }
+            }
+        });
+
+        let parse_downcast_attempts = args.events.iter().map(|event| {
+            let variant_name = &event.name;
+            let response_type = &event.response_name;
+            quote! {
+                if let Some(resp) = event_msg.downcast::<#response_type>() {
+                    let owned = std::sync::Arc::try_unwrap(resp).unwrap_or_else(|arc| (*arc).clone());
+                    return Ok(#response_enum_name::#variant_name(owned));
+                }
+            }
+        });
+
+        // Get the combined protocol mask (OR all protocols together)
+        let protocol_mask = if args.events.len() > 1 {
+            let first_proto = &args.events[0].protocol_expr;
+            quote! { #first_proto }
+        } else {
+            let proto = &args.events[0].protocol_expr;
+            quote! { #proto }
+        };
+
+        let enum_defs = quote! {
+            #[derive(Debug, Clone)]
+            pub enum #request_enum_name {
+                #(#request_variants),*
+            }
+
+            impl crate::protocol::ProtocolEvent for #request_enum_name {}
+
+            #[derive(Debug)]
+            pub enum #response_enum_name {
+                #(#response_variants),*
+            }
+
+            impl crate::protocol::ProtocolEvent for #response_enum_name {}
+        };
+
+        let typed_impl = quote! {
+            #[async_trait::async_trait]
+            impl crate::protocol::TypedService for #service_name {
+                type Request = #request_enum_name;
+                type Response = #response_enum_name;
+
+                #[inline]
+                fn metadata(&self) -> &crate::protocol::ServiceMetadata {
+                    &self.metadata
+                }
+
+                #[inline]
+                async fn build(
+                    &self,
+                    request: &Self::Request,
+                    context: std::sync::Arc<crate::context::BotContext>,
+                ) -> crate::Result<bytes::Bytes> {
+                    match request {
+                        #(#build_match_arms),*
+                    }
+                }
+
+                #[inline]
+                async fn parse(
+                    &self,
+                    bytes: bytes::Bytes,
+                    context: std::sync::Arc<crate::context::BotContext>,
+                ) -> crate::Result<Self::Response> {
+                    let event_msg = self.__internal_parse(bytes, context).await?;
+
+                    // Try downcasting to each possible response type
+                    #(#parse_downcast_attempts)*
+
+                    Err(crate::error::Error::ParseError(
+                        "Response did not match any expected type".to_string()
+                    ))
+                }
+            }
+        };
+
+        let typed_reg = quote! {
+            registry.register_typed_service(
+                #service_name::default(),
+                #protocol_mask,
+            );
+        };
+
+        (quote! { #enum_defs #typed_impl }, typed_reg)
+    };
 
     let expanded = quote! {
         #(#event_structs)*
@@ -616,6 +782,13 @@ pub(crate) fn define_service_impl(input: TokenStream) -> TokenStream {
             pub fn metadata(&self) -> &crate::protocol::ServiceMetadata {
                 &self.metadata
             }
+
+            // Internal helper methods (used by TypedService impl)
+            #[inline]
+            async fn __internal_parse(&self, #parse_params) -> crate::error::Result<crate::protocol::EventMessage> #parse_body
+
+            #[inline]
+            async fn __internal_build(&self, #build_params) -> crate::error::Result<bytes::Bytes> #build_body
         }
 
         impl Default for #service_name {
@@ -627,30 +800,14 @@ pub(crate) fn define_service_impl(input: TokenStream) -> TokenStream {
             }
         }
 
-        #[async_trait::async_trait]
-        impl crate::internal::services::Service for #service_name {
-            #[inline]
-            async fn parse(&self, #parse_params) -> crate::error::Result<crate::protocol::EventMessage> #parse_body
-
-            #[inline]
-            async fn build(&self, #build_params) -> crate::error::Result<bytes::Bytes> #build_body
-
-            #[inline]
-            fn metadata(&self) -> &crate::protocol::ServiceMetadata {
-                &self.metadata
-            }
-        }
+        // TypedService trait implementation
+        // (includes enum definitions for multi-event services)
+        #typed_service_code
 
         #[linkme::distributed_slice(crate::internal::services::SERVICE_INITIALIZERS)]
         fn #registration_fn_name(registry: &mut crate::internal::services::ServiceRegistry) {
-            let service = std::sync::Arc::new(#service_name::default());
-
-            registry.register_service(
-                #command.to_string(),
-                service.clone(),
-            );
-
-            #(#event_registrations)*
+            // Register typed service
+            #typed_service_registration
         }
     };
 

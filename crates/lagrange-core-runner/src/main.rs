@@ -9,7 +9,6 @@ use std::sync::Arc;
 use tracing::{error, info, Level};
 use tracing_subscriber::{fmt, layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
-const BOT_UIN: Option<u64> = None;
 const BOT_PROTOCOL: Protocols = Protocols::Linux;
 const BOT_VERBOSE: bool = false;
 const AUTO_RECONNECT: bool = true;

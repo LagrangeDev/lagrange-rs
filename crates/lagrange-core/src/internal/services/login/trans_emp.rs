@@ -1,12 +1,14 @@
 use crate::context::BotContext;
+use crate::internal::packets::login::qr_login_ext_info::QrExtInfo;
 use crate::internal::packets::login::wtlogin::WtLogin;
 use bytes::Bytes;
 use lagrange_macros::define_service;
+use lagrange_proto::ProtoDecode;
 use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::protocol::{EncryptType, EventMessage, Protocols, RequestType};
-use crate::utils::binary::{BinaryPacket, Prefix};
+use crate::utils::binary::BinaryPacket;
 use crate::utils::tlv_unpack;
 
 define_service! {
@@ -54,28 +56,38 @@ define_service! {
                 .parse_code_2d_packet(wtlogin.as_ref())
                 .map_err(|e| crate::error::Error::ParseError(e.to_string()))?;
 
+            let mut reader = BinaryPacket::from_slice(&payload);
+            let _dummy = reader.read::<i16>()?;
+            let _app_id = reader.read::<i32>()?;
+            let ret_code = reader.read::<u8>()?;
+
             match command {
                 0x31 => {
-                    let mut reader = BinaryPacket::from_slice(&payload);
-                    let qr_url = reader.read_string(Prefix::INT16)?;
-                    let tlvs = tlv_unpack(&mut reader)?;
-
-                    let sig = if reader.remaining() >= 2 {
-                        match reader.read_bytes_with_prefix(Prefix::INT16) {
-                            Ok(sig_data) => Some(sig_data.to_vec()),
-                            Err(_) => None,
-                        }
+                    let sig_len = reader.read::<i16>()?;
+                    let sig = if sig_len > 0 {
+                        Some(reader.read_bytes(sig_len as usize)?.to_vec())
                     } else {
                         None
                     };
 
-                    tracing::debug!(
-                        qr_url = %qr_url,
-                        tlv_count = tlvs.len(),
-                        has_sig = sig.is_some(),
-                        "TransEmp31 response received"
-                    );
+                    let tlvs = tlv_unpack(&mut reader)?;
 
+                    let qr_ext_info = if let Some(tlv_d1) = tlvs.get(&0xD1) {
+                        QrExtInfo::decode(tlv_d1.as_slice())
+                            .map_err(|e| crate::error::Error::ParseError(format!(
+                                "Failed to decode QrExtInfo: {}", e
+                            )))?
+                    } else {
+                        return Err(crate::error::Error::ParseError(
+                            "Missing tlv 0xD1 in TransEmp31 response".to_string()
+                        ));
+                    };
+
+                    let qr_url = qr_ext_info.qr_url
+                        .ok_or_else(|| crate::error::Error::ParseError(
+                            "Missing qr_url in QrExtInfo".to_string()
+                        ))?;
+                    
                     Ok(EventMessage::new(TransEmp31EventResp {
                         qr_url,
                         tlvs,
@@ -83,9 +95,6 @@ define_service! {
                     }))
                 }
                 0x12 => {
-                    let mut reader = BinaryPacket::from_slice(&payload);
-                    let ret_code = reader.read::<u8>()?;
-
                     let (uin, retry, tlv_1e, tlv_19, tlv_18) = if ret_code == 0 {
                         let uin = reader.read::<u64>()?;
                         let retry = reader.read::<u8>()?;

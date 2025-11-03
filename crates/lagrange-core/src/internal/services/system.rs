@@ -1,3 +1,3 @@
 pub mod heartbeat;
 
-pub use heartbeat::{AliveEventReq, AliveEventResp};
+pub use heartbeat::{AliveEventReq, AliveEventResp, AliveService};

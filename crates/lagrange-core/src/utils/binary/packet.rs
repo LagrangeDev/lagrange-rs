@@ -303,7 +303,7 @@ impl BinaryPacket {
 
     #[inline]
     pub fn peek<T: EndianSwap + Copy>(&self) -> Result<T> {
-        let size = std::mem::size_of::<T>();
+        let size = size_of::<T>();
 
         if self.offset + size > self.buffer.len() {
             return Err(PacketError::InsufficientData {

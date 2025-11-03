@@ -140,5 +140,20 @@ pub fn extract_generated_types(def: &ServiceDefinition) -> Vec<Ident> {
         types.push(event.response_name.clone());
     }
 
+    // For multi-event services, also export the enum wrappers
+    if def.events.len() > 1 {
+        let service_name_str = def.service_name.to_string();
+        let request_enum_name = Ident::new(
+            &format!("{}Request", service_name_str),
+            def.service_name.span(),
+        );
+        let response_enum_name = Ident::new(
+            &format!("{}Response", service_name_str),
+            def.service_name.span(),
+        );
+        types.push(request_enum_name);
+        types.push(response_enum_name);
+    }
+
     types
 }

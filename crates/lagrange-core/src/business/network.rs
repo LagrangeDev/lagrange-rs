@@ -1,4 +1,4 @@
-﻿use crate::{BotContext, Error, internal::services::AliveEventReq};
+﻿use crate::{BotContext, Error, internal::services::system::{AliveEventReq, AliveService}};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time;
@@ -32,7 +32,8 @@ impl BotContext {
                     continue;
                 }
 
-                if let Err(e) = self.event.send_event(self.clone(), AliveEventReq {}).await {
+                // Use new type-safe send API
+                if let Err(e) = self.event.send::<AliveService>(AliveEventReq {}, self.clone()).await {
                     tracing::warn!(error = %e, "Failed to send heartbeat");
                 }
             }

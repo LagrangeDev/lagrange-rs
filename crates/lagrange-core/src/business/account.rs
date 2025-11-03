@@ -1,16 +1,19 @@
 ﻿use std::sync::Arc;
 use crate::{BotContext, Error};
-use crate::internal::services::{TransEmp31EventReq};
+use crate::internal::services::login::{TransEmp31EventReq, TransEmpService, TransEmpServiceRequest, TransEmpServiceResponse};
 
 impl BotContext {
-    pub async fn fetch_qrcode(self: &Arc<Self>) -> Result<Vec<u8>, Error> {
-        let event = TransEmp31EventReq {
+    pub async fn fetch_qrcode(self: &Arc<Self>) -> Result<String, Error> {
+        let event = TransEmpServiceRequest::TransEmp31Event(TransEmp31EventReq {
             unusual_sig: None
-        };
-        if let Err(e) = self.event.send_event(self.clone(), event).await {
-            tracing::warn!(error = %e, "Failed to send fetch_qrcode");
-        }
+        });
+        let response = self.event.send::<TransEmpService>(event, self.clone()).await?;
 
-        Ok(vec![])
+        match response {
+            TransEmpServiceResponse::TransEmp31Event(resp) => Ok(resp.qr_url),
+            _ => Err(Error::ParseError(
+                "Expected TransEmp31Event response but got different variant".to_string()
+            ))
+        }
     }
 }

@@ -47,6 +47,95 @@ pub trait ProtocolEvent: Send + Sync + 'static {
     }
 }
 
+/// Type-safe service trait with compile-time checked request/response pairs.
+///
+/// This trait defines a service that can build outgoing packets from requests
+/// and parse incoming packets into responses. The associated types ensure that
+/// request and response types are checked at compile time.
+///
+/// # Type Parameters
+///
+/// - `Request`: The request event type that this service accepts
+/// - `Response`: The response event type that this service produces
+///
+/// # Example
+///
+/// ```ignore
+/// struct HeartbeatService;
+///
+/// impl TypedService for HeartbeatService {
+///     type Request = HeartbeatReq;
+///     type Response = HeartbeatResp;
+///
+///     fn metadata(&self) -> &ServiceMetadata {
+///         static METADATA: ServiceMetadata = ServiceMetadata {
+///             command: "trpc.qq_new_tech.status_svc.StatusService.SsoHeartBeat",
+///             request_type: RequestType::Simple,
+///             encrypt_type: EncryptType::EncryptD2Key,
+///             disable_log: false,
+///         };
+///         &METADATA
+///     }
+///
+///     async fn build(&self, request: &Self::Request, context: std::sync::Arc<crate::context::BotContext>) -> crate::Result<bytes::Bytes> {
+///         // Serialize request into packet bytes
+///         todo!()
+///     }
+///
+///     async fn parse(&self, bytes: bytes::Bytes, context: std::sync::Arc<crate::context::BotContext>) -> crate::Result<Self::Response> {
+///         // Parse packet bytes into response
+///         todo!()
+///     }
+/// }
+/// ```
+#[async_trait::async_trait]
+pub trait TypedService: Send + Sync + 'static {
+    /// The request event type for this service.
+    type Request: ProtocolEvent;
+
+    /// The response event type for this service.
+    type Response: ProtocolEvent;
+
+    /// Returns the metadata for this service, including command name and encryption settings.
+    fn metadata(&self) -> &ServiceMetadata;
+
+    /// Builds an outgoing packet from a request event.
+    ///
+    /// This method serializes the request into bytes that can be sent over the network.
+    ///
+    /// # Arguments
+    ///
+    /// * `request` - The request event to serialize
+    /// * `context` - The bot context containing state and configuration
+    ///
+    /// # Returns
+    ///
+    /// The serialized packet bytes, or an error if serialization fails.
+    async fn build(
+        &self,
+        request: &Self::Request,
+        context: std::sync::Arc<crate::context::BotContext>,
+    ) -> crate::Result<bytes::Bytes>;
+
+    /// Parses an incoming packet into a response event.
+    ///
+    /// This method deserializes the packet bytes into a typed response.
+    ///
+    /// # Arguments
+    ///
+    /// * `bytes` - The packet bytes to parse
+    /// * `context` - The bot context containing state and configuration
+    ///
+    /// # Returns
+    ///
+    /// The parsed response event, or an error if parsing fails.
+    async fn parse(
+        &self,
+        bytes: bytes::Bytes,
+        context: std::sync::Arc<crate::context::BotContext>,
+    ) -> crate::Result<Self::Response>;
+}
+
 #[derive(Clone)]
 pub struct EventMessage {
     type_id: std::any::TypeId,
